@@ -1,0 +1,8 @@
+#!/bin/sh
+# Compatibility shim — all logic lives in log_hook.sh
+# This file exists so scripts that source "log_hook" (without .sh) still work.
+. "$(dirname "$0")/log_hook.sh"
+
+log_example() {
+	echo -e "  ${BOLD}${GREEN}[EXAMPLE]${NC} $*" | tee -a "$LOG_DIR/hook.log"
+}

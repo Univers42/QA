@@ -1,0 +1,43 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────
+# pre-push — Adaptive DevOps Shield for mini-baas
+# Protects shared branches, allows free will on features.
+# ─────────────────────────────────────────────────────────
+set -uo pipefail
+. "$(dirname "$0")/log_hook.sh"
+
+CONTAINER_NAME="baas-dev-engine"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+log_broadcast "PUSH SYSTEM - ADAPTIVE SHIELD"
+
+# ---------------------------------------------------------
+# 🕊️ FREE WILL ZONE (Feature Branches)
+# ---------------------------------------------------------
+if [[ "$CURRENT_BRANCH" != "develop" && "$CURRENT_BRANCH" != "main" ]]; then
+    log_success "Feature branch ($CURRENT_BRANCH). Free will mode active! Push allowed."
+    exit 0
+fi
+
+# ---------------------------------------------------------
+# 🛑 ZERO TOLERANCE ZONE (Shared Branches)
+# ---------------------------------------------------------
+log_warn "Protected branch ($CURRENT_BRANCH) detected. Applying strict engine checks..."
+
+# Check if the development container is DOWN
+if [ -z "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
+    log_error "FATAL: Engine is DOWN. You CANNOT push to $CURRENT_BRANCH without passing checks."
+    log_info "Please run 'make dev' to start the engine and try again."
+    exit 1
+fi
+
+# Engine is UP. Run format, lint, typecheck, and unit tests.
+log_info "Running quality pipeline (format, lint, typecheck, test-unit)..."
+
+if ! (make format && make lint && make typecheck && make test-unit); then
+    log_error "Quality check failed. Push blocked to protect $CURRENT_BRANCH!"
+    exit 1
+fi
+
+log_success "Quality checks passed. Pushing to $CURRENT_BRANCH..."
+exit 0

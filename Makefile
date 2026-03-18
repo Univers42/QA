@@ -324,60 +324,30 @@ ensure-backend-deps:
 	}
 
 # ============================================
-#  🛡️ GIT HOOKS
+#  🛡️ GIT HOOKS (Hooks-as-Code Pattern)
 # ============================================
 
-.PHONY: install-hooks
+.PHONY: configure-hooks
 
-install-hooks: ## 🛡️ Install Native Git Pre-push Hooks (Host-side)
-	$(call step,$(BLUE)ℹ,Installing DevOps Shield (Pre-push)...)
-	
-	# Clean up any strict pre-commit hooks to allow WIP commits locally
-	@rm -f .git/hooks/pre-commit 
-	
-	# Generate the pre-push hook script dynamically
-	@echo '#!/bin/bash' > .git/hooks/pre-push
-	@echo 'CONTAINER_NAME=$(CONTAINER)' >> .git/hooks/pre-push
-	
-	# Get the current Git branch the developer is pushing from
-	@echo 'CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD)' >> .git/hooks/pre-push
-	@echo '' >> .git/hooks/pre-push
-	
-	# ---------------------------------------------------------
-	# 🕊️ FREE WILL ZONE (Feature Branches)
-	# ---------------------------------------------------------
-	@echo '# If the branch is NOT develop and NOT main, allow immediate push' >> .git/hooks/pre-push
-	@echo 'if [[ "$$CURRENT_BRANCH" != "develop" && "$$CURRENT_BRANCH" != "main" ]]; then' >> .git/hooks/pre-push
-	@echo '  echo -e "\033[0;32m🕊️  DevOps: Feature branch ($$CURRENT_BRANCH) detected. Free will mode active! Push allowed.\033[0m"' >> .git/hooks/pre-push
-	@echo '  exit 0' >> .git/hooks/pre-push
-	@echo 'fi' >> .git/hooks/pre-push
-	@echo '' >> .git/hooks/pre-push
-	
-	# ---------------------------------------------------------
-	# 🛑 ZERO TOLERANCE ZONE (Shared Branches)
-	# ---------------------------------------------------------
-	@echo '# Protected branch detected. Enforcing Zero Tolerance policy.' >> .git/hooks/pre-push
-	@echo 'echo -e "\033[1;33m🛡️  DevOps: Protected branch ($$CURRENT_BRANCH) detected. Applying strict checks...\033[0m"' >> .git/hooks/pre-push
-	
-	# Check if the development container is DOWN
-	@echo 'if [ -z "$$(docker ps -q -f name=$$CONTAINER_NAME)" ]; then' >> .git/hooks/pre-push
-	@echo '  echo -e "\033[0;31m🛑 DevOps FATAL: Engine is DOWN. You CANNOT push to $$CURRENT_BRANCH without passing checks.\033[0m"' >> .git/hooks/pre-push
-	@echo '  echo -e "Please run \033[1;33mmake dev\033[0m to start the engine and try again."' >> .git/hooks/pre-push
-	@echo '  exit 1' >> .git/hooks/pre-push
-	@echo 'fi' >> .git/hooks/pre-push
-	
-	# Run format, lint, typecheck, and unit tests. If any fails, abort.
-	@echo 'make format && make lint && make typecheck && make test-unit' >> .git/hooks/pre-push
-	@echo 'if [ $$? -ne 0 ]; then' >> .git/hooks/pre-push
-	@echo '  echo -e "\033[0;31m❌ Quality check failed. Push blocked to protect $$CURRENT_BRANCH!\033[0m"' >> .git/hooks/pre-push
-	@echo '  exit 1' >> .git/hooks/pre-push
-	@echo 'fi' >> .git/hooks/pre-push
-	
-	@echo 'echo -e "\033[0;32m✅ Quality checks passed. Pushing to $$CURRENT_BRANCH...\033[0m"' >> .git/hooks/pre-push
-	
-	# Make the hook executable
-	@chmod +x .git/hooks/pre-push
-	$(call step,$(GREEN)✓,DevOps Pre-push Shield active!)
+HOOKS_DIR := scripts/hooks
+
+configure-hooks: ## 🪝 Activate Git Hooks (Auto-runs on make all)
+	$(call step,$(BLUE)ℹ,Activating DevOps Shield...)
+	@if [ ! -d .git ]; then \
+		echo -e "  $(YELLOW)⚠$(NC)  Not a git repo — skipping hook setup"; \
+	else \
+		CURRENT=$$(git config --local core.hooksPath 2>/dev/null || echo ""); \
+		if [ "$$CURRENT" = "$$HOOKS_DIR" ]; then \
+			echo -e "  $(GREEN)✓$(NC)  Git hooks already active"; \
+		else \
+			git config --local core.hooksPath $(HOOKS_DIR); \
+			chmod +x $(HOOKS_DIR)/*; \
+			echo -e "  $(GREEN)✓$(NC)  Git hooks mapped to $(BOLD)$(HOOKS_DIR)$(NC)"; \
+		fi; \
+		for old in commit-msg pre-commit pre-push post-checkout pre-merge-commit; do \
+			if [ -f ".git/hooks/$$old" ]; then rm -f ".git/hooks/$$old"; fi; \
+		done; \
+	fi
 
 # ============================================
 #  ✅ QUALITY & PHASE 0 CHECKS

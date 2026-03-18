@@ -1,0 +1,93 @@
+#!/bin/sh
+# ─────────────────────────────────────────────────────────
+#  commit-msg — Validate conventional commit format
+#  Format: type(scope): <description>
+#  Bypass: SKIP_COMMIT_MSG=1 git commit …
+# ─────────────────────────────────────────────────────────
+. "$(dirname "$0")/log_hook.sh"
+
+# Allow explicit bypass
+if [ "${SKIP_COMMIT_MSG:-0}" = "1" ]; then
+	log_warn "commit-msg: hook bypassed via SKIP_COMMIT_MSG=1"
+	exit 0
+fi
+
+TYPES="feat|fix|docs|refactor|test|chore|style|perf|ci|build|revert"
+ALLOWED_TYPES="feat, fix, docs, refactor, test, chore, style, perf, ci, build, revert"
+FORBIDDEN="WIP|squash!|debug|temporary|fixup!"
+FORBIDDEN_WORDS="WIP, squash!, debug, temporary, fixup!"
+
+MSG_FILE="$1"
+if [ -z "$MSG_FILE" ] || [ ! -f "$MSG_FILE" ]; then
+	exit 0
+fi
+
+# Skip merge commits — they have their own format
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+	log_info "commit-msg: merge commit detected — skipping validation."
+	exit 0
+fi
+
+# PUBLISH MODE: only enforce length >= 25 words, nothing else.
+if [ "${GIT_PUBLISH:-}" = "1" ]; then
+	word_count=$(awk '!/^[[:space:]]*($|#)/{print}' "$MSG_FILE" | wc -w | tr -d '[:space:]')
+	if [ "$word_count" -lt 25 ]; then
+		log_error "publish mode: commit message must contain at least 25 words (got $word_count)."
+		log_example "Provide a detailed description: git commit -m \"type(scope): your long message…\""
+		exit 1
+	fi
+	log_success "publish mode: commit message length OK ($word_count words)."
+	exit 0
+fi
+
+log_broadcast "COMMIT-MSG VALIDATION"
+
+header=$(awk '!/^[[:space:]]*($|#)/{print;exit}' "$MSG_FILE")
+
+# ── 1. Format check ────────────────────────────────────
+if ! printf "%s" "$header" | grep -Eiq "^($TYPES)\([a-zA-Z0-9._-]+\):[[:space:]]*.+$"; then
+	log_error "Commit header must match:  type(scope): description"
+	log_info  "Allowed types: ${ALLOWED_TYPES}"
+	log_info  "Scope must be alphanumeric (letters, digits, dots, hyphens, underscores)."
+	log_example "feat(auth): Add JWT token refresh on session expiry"
+	exit 1
+fi
+
+# ── 2. Description length (25–170 chars) ───────────────
+description=$(printf "%s" "$header" | sed -E "s/^($TYPES)\([^)]+\):[[:space:]]*(.*)$/\2/I")
+len=$(printf '%s' "$description" | wc -c | tr -d '[:space:]')
+if [ "$len" -lt 25 ] || [ "$len" -gt 170 ]; then
+	log_error "Description must be 25–170 characters (got $len)."
+	log_info  "Your description: \"$description\""
+	exit 1
+fi
+
+# ── 3. Description must start with uppercase ───────────
+first_char=$(printf '%s' "$description" | cut -c1)
+case "$first_char" in
+	[A-Z]) ;; # good
+	*)
+		log_error "Description must start with an uppercase letter."
+		log_info  "Got: \"$description\""
+		log_example "fix(api): Resolve null pointer on empty payload"
+		exit 1
+		;;
+esac
+
+# ── 4. No trailing period ─────────────────────────────
+case "$description" in
+	*.)
+		log_error "Description must not end with a period."
+		exit 1
+		;;
+esac
+
+# ── 5. Forbidden words ────────────────────────────────
+if grep -Eiq "$FORBIDDEN" "$MSG_FILE"; then
+	log_error "Commit message contains forbidden word(s)."
+	log_warn  "Forbidden: ${FORBIDDEN_WORDS}"
+	exit 1
+fi
+
+log_success "commit-msg: validation passed."
+exit 0

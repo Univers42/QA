@@ -1,0 +1,122 @@
+#!/bin/sh
+# ─────────────────────────────────────────────────────────
+#  pre-commit — Validate staged files before commit
+#  Checks: merge markers, debug leftovers, large files,
+#           whitespace issues, .env leaks
+#  Bypass: SKIP_PRE_COMMIT=1 git commit …
+# ─────────────────────────────────────────────────────────
+. "$(dirname "$0")/log_hook.sh"
+
+# Allow explicit bypass
+if [ "${SKIP_PRE_COMMIT:-0}" = "1" ]; then
+	log_warn "pre-commit: hook bypassed via SKIP_PRE_COMMIT=1"
+	exit 0
+fi
+
+# Skip during publish mode (commit-msg handles validation)
+if [ "${GIT_PUBLISH:-}" = "1" ]; then
+	log_info "pre-commit: publish mode — skipping staged-file checks."
+	exit 0
+fi
+
+# Skip during rebase/merge — automated commits shouldn't be blocked
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+	exit 0
+fi
+if [ -d "$(git rev-parse --git-dir)/rebase-merge" ] || \
+   [ -d "$(git rev-parse --git-dir)/rebase-apply" ]; then
+	exit 0
+fi
+
+log_broadcast "PRE-COMMIT CHECKS"
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null)
+if [ -z "$STAGED_FILES" ]; then
+	log_info "pre-commit: no staged files to check."
+	exit 0
+fi
+
+ERRORS=0
+
+# ── 1. Merge conflict markers ─────────────────────────
+log_debug "Checking for merge conflict markers…"
+for f in $STAGED_FILES; do
+	if [ -f "$f" ] && grep -Hn '^[<>=]\{7\}' "$f" >/dev/null 2>&1; then
+		log_error "Merge conflict marker found in: $f"
+		ERRORS=$((ERRORS + 1))
+	fi
+done
+
+# ── 2. Forbidden debug patterns in source code ────────
+log_debug "Checking for debug leftovers…"
+for f in $STAGED_FILES; do
+	case "$f" in
+		*.ts|*.tsx|*.js|*.jsx)
+			# Check staged content (not working tree) via git show
+			content=$(git show ":$f" 2>/dev/null || true)
+			if [ -n "$content" ]; then
+				if printf '%s' "$content" | grep -nE '^\s*debugger\s*;?\s*$' >/dev/null 2>&1; then
+					log_error "debugger statement in staged: $f"
+					ERRORS=$((ERRORS + 1))
+				fi
+				if printf '%s' "$content" | grep -nE 'console\.(log|debug|trace)\(' >/dev/null 2>&1; then
+					# Ignore test files and config files
+					case "$f" in
+						*.test.*|*.spec.*|*.config.*|*jest*|*vite.config*) ;;
+						*)
+							log_warn "console.log/debug/trace found in: $f (consider removing before commit)"
+							;;
+					esac
+				fi
+			fi
+			;;
+	esac
+done
+
+# ── 3. Sensitive / forbidden files ────────────────────
+log_debug "Checking for sensitive files…"
+for f in $STAGED_FILES; do
+	case "$f" in
+		.env|.env.local|.env.production|.env.*.local)
+			log_error "Sensitive file staged: $f — add it to .gitignore"
+			ERRORS=$((ERRORS + 1))
+			;;
+		*.pem|*.key|*.p12|*.pfx)
+			log_error "Private key/certificate staged: $f"
+			ERRORS=$((ERRORS + 1))
+			;;
+	esac
+done
+
+# ── 4. Large files (>500 KB) ──────────────────────────
+MAX_SIZE=512000  # 500 KB
+log_debug "Checking file sizes…"
+for f in $STAGED_FILES; do
+	if [ -f "$f" ]; then
+		size=$(wc -c < "$f" | tr -d '[:space:]')
+		if [ "$size" -gt "$MAX_SIZE" ]; then
+			size_kb=$((size / 1024))
+			log_error "File too large (${size_kb} KB > 500 KB): $f"
+			log_example "Use Git LFS for large files:  git lfs track \"$f\""
+			ERRORS=$((ERRORS + 1))
+		fi
+	fi
+done
+
+# ── 5. Trailing whitespace on new/modified lines ──────
+log_debug "Checking trailing whitespace…"
+if git diff --cached --check >/dev/null 2>&1; then
+	: # clean
+else
+	log_warn "Trailing whitespace detected in staged changes (run: git diff --cached --check)"
+fi
+
+# ── Summary ────────────────────────────────────────────
+if [ "$ERRORS" -gt 0 ]; then
+	log_error "pre-commit: $ERRORS issue(s) found — commit blocked."
+	log_example "Fix the issues above, or bypass with:  SKIP_PRE_COMMIT=1 git commit …"
+	exit 1
+fi
+
+log_success "pre-commit: all staged files OK."
+exit 0

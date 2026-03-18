@@ -1,0 +1,56 @@
+#!/bin/sh
+# ─────────────────────────────────────────────────────────
+#  post-checkout — Auto-pull and verify hooks on branch switch
+#  Opt-out:  GIT_AUTO_PULL=no
+#  Bypass:   SKIP_POST_CHECKOUT=1
+# ─────────────────────────────────────────────────────────
+. "$(dirname "$0")/log_hook.sh"
+
+# args: previous HEAD, new HEAD, is_branch_checkout (1 = branch)
+prev_ref="$1"
+new_ref="$2"
+is_branch="$3"
+
+if [ "${SKIP_POST_CHECKOUT:-0}" = "1" ]; then
+	exit 0
+fi
+
+# Only act on branch checkouts (not file checkouts)
+if [ "$is_branch" != "1" ]; then
+	exit 0
+fi
+
+# Respect opt-out
+if [ "${GIT_AUTO_PULL:-yes}" = "no" ]; then
+	log_info "Auto-pull disabled (GIT_AUTO_PULL=no)."
+	exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPO_ROOT" || exit 0
+
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+if [ -z "$branch" ] || [ "$branch" = "HEAD" ]; then
+	exit 0
+fi
+
+# ── Auto-pull from upstream ───────────────────────────
+if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+	upstream="$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null)"
+	log_info "Auto-pull: fast-forward from '$upstream' for '$branch'…"
+	if git pull --ff-only >/dev/null 2>&1; then
+		log_success "Auto-pull succeeded for '$branch'."
+	else
+		log_warn "Auto-pull failed (non-fast-forward or network). Run: git pull"
+	fi
+else
+	log_debug "No upstream for '$branch' — skipping auto-pull."
+fi
+
+# ── Verify hooks are active ────────────────────────
+current_hooks_path="$(git config --local core.hooksPath 2>/dev/null || echo "")"
+if [ "$current_hooks_path" != "vendor/scripts/hooks" ]; then
+	log_warn "Git hooks not active. Run: make configure-hooks"
+fi
+
+exit 0
