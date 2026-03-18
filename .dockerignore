@@ -1,0 +1,26 @@
+# ============================================
+# mini-baas — Docker Build Context Exclusions
+# ============================================
+
+# Only ship the application source and Docker definitions into the build context.
+**
+
+!.dockerignore
+!app/
+!app/**
+!docker/
+!docker/**
+
+# Keep local-only files out of the context even under app/.
+app/.env
+app/.env.*
+!app/.env.example
+app/node_modules/
+app/.pnpm-store/
+app/dist/
+app/build/
+app/.cache/
+app/coverage/
+app/.nyc_output/
+app/test-results*
+app/uploads/
