@@ -55,6 +55,8 @@ To ensure scalability, the golden rule is that every single one of our 6
 repositories must be born from an identical structure (Standard Service Layout).
 
 Mandatory Structure for Every Repo:
+
+```plaintext
 .
 ├── .git/
 ├── .github/
@@ -72,7 +74,7 @@ Mandatory Structure for Every Repo:
 │   └── e2e/                   <-- Playwright smoke tests
 ├── Makefile                   <-- The Standardized Orchestrator
 └── Dockerfile                 <-- Multi-stage build (dev/prod)
-
+```
 --------------------------------------------------------------------------------
 3. THE UNIVERSAL "SUPER-MAKEFILE" (THE CONTRACT)
 --------------------------------------------------------------------------------
@@ -180,7 +182,7 @@ exit 0
 --------------------------------------------------------------------------------
 To maintain momentum without paralyzing the team, we will divide the work.
 
-LAYER A: THE SOLID FOUNDATION (Week 1 - DevOps Responsibility)
+LAYER A: THE SOLID FOUNDATION (Week 1)
 1. 'baas-infra' Repository: Create this central hub. Its sole purpose is to host 
    the reusable '.github/workflows' and base Docker images.
 2. Repo Template: Apply the Standard Service Layout (Universal Makefile, 
@@ -189,9 +191,9 @@ LAYER A: THE SOLID FOUNDATION (Week 1 - DevOps Responsibility)
    up Minikube or K3d locally so the team can test the API Gateway interacting 
    with the Auth Service.
 
-LAYER B: SPECIALIZATION & QA (Week 1 - Colleague's Responsibility)
-Once she receives the QA repository with the Makefile and hooks pre-installed, 
-she will focus on:
+LAYER B: SPECIALIZATION & QA (Week 1)
+Once the QA repository has the basics with the Makefile and hooks pre-installed, 
+we will focus on:
 1. Smoke Tests (Playwright): Add the Playwright suite in 'tests/e2e/' to ensure 
    protected routes reject unauthenticated access.
 2. Basic Fuzzing: Populate 'tests/security/payloads/' with .txt files containing 
