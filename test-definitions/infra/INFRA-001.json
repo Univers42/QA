@@ -1,0 +1,25 @@
+{
+  "id": "INFRA-001",
+  "title": "MongoDB Test Hub responds to ping",
+  "description": "Verifies if the Test Hub's MongoDB instance id operative ande responds to the command adminCommand ping. The primary infrastructure smoke test.",
+  "domain": "infra",
+  "type": "smoke",
+  "layer": "infra",
+  "priority": "P0",
+  "tags": ["mongodb", "smoke", "infrastructure"],
+  "service": "mongo",
+  "component": "MongoDB",
+  "environment": ["local"],
+  "dependencies": [],
+  "preconditions": ["Docker is running", "make up previously executed"],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["ok"]
+  },
+  "url": "mongodb://localhost:27017",
+  "method": "GET",
+  "author": "vjan-nie",
+  "phase": "phase-0",
+  "status": "active",
+  "notes": "If this test fails, no other test can run. Check make up."
+}
