@@ -21,7 +21,7 @@
 
 ## 1. What This Repository Is
 
-`prismatica-qa` is a **dedicated QA repository** for the Prismatica / ft_transcendence project. It lives separately from both `transcendence` (the application) and `mini-baas-infra` (the infrastructure), and it tests both of them by calling their services over HTTP.
+`QA` is a **dedicated QA repository** for the Prismatica / ft_transcendence project. It lives separately from both `transcendence` (the application) and `mini-baas-infra` (the infrastructure), and it tests both of them by calling their services over HTTP.
 
 The core philosophy is called **DDA — Data-Driven Automation**. Instead of writing test code, you write test *data*: a JSON document that describes what should happen. A generic runner reads that document and checks if it does.
 
@@ -29,14 +29,14 @@ Think of it like PostgREST: instead of writing one endpoint per table, you defin
 
 ```mermaid
 graph LR
-    T["transcendence\nfrontend + backend"]
-    M["mini-baas-infra\nKong · GoTrue · PostgREST\nRealtime · MinIO"]
-    Q["prismatica-qa\nTest Hub"]
+    T["transcendence : frontend + backend"]
+    M["mini-baas-infra<br/>Kong · GoTrue · PostgREST · Realtime · MinIO"]
+    Q["QA : Test Hub"]
 
-    Q -->|"HTTP calls\nto running services"| T
-    Q -->|"HTTP calls\nto running services"| M
-    Q -.-|"never imports\ntheir code"| T
-    Q -.-|"never imports\ntheir code"| M
+    Q -->|"HTTP calls<br/>to running services"| T
+    Q -->|"HTTP calls<br/>to running services"| M
+    Q -.-|"never imports<br/>their code"| T
+    Q -.-|"never imports<br/>their code"| M
 
     style Q fill:#ede9fe,stroke:#7c3aed,color:#3b1f6e
     style T fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
@@ -82,13 +82,13 @@ This diagram shows the complete data flow from writing a test to seeing a result
 ```mermaid
 flowchart TD
     subgraph GIT["Git repository (source of truth)"]
-        JSON["test-definitions/\n*.json files"]
-        SCRIPTS["scripts/\ndb.ts · seed.ts · validate.ts"]
+        JSON["test-definitions/*.json files"]
+        SCRIPTS["scripts/db.ts · seed.ts · validate.ts"]
     end
 
     subgraph LOCAL["Local machine"]
-        MONGO[("MongoDB\ntest_hub · :27017\nDocker container")]
-        RUNNER["Runner\nrunner/src/cli.ts\n(Phase 2)"]
+        MONGO[("MongoDB test_hub · :27017 · Docker container")]
+        RUNNER["Runner : runner/src/cli.ts (Phase 2)"]
     end
 
     subgraph SERVICES["Services under test (must be running)"]
@@ -99,12 +99,12 @@ flowchart TD
     end
 
     subgraph RESULTS["Results"]
-        RESMONGO[("results collection\nMongoDB")]
-        DASHBOARD["Dashboard · :3003\n(Phase 4)"]
-        TERMINAL["Terminal output\npass / fail table"]
+        RESMONGO[("results collection : MongoDB")]
+        DASHBOARD["Dashboard · :3003 (Phase 4)"]
+        TERMINAL["Terminal output : pass / fail table"]
     end
 
-    JSON -->|"make validate"| VALIDATE["AJV validator\nblocks on schema error"]
+    JSON -->|"make validate"| VALIDATE["AJV validator : blocks on schema error"]
     VALIDATE -->|"make seed"| MONGO
     MONGO -->|"make test"| RUNNER
     RUNNER -->|"HTTP"| KONG
@@ -133,7 +133,7 @@ Starts a single MongoDB container on port 27017. This is the only Docker service
 
 ```mermaid
 graph LR
-    DC["docker-compose.yml"]-->|"docker compose up"| MONGO[("mongo:7\n:27017\ntest_hub database")]
+    DC["docker-compose.yml"]-->|"docker compose up"| MONGO[("mongo:7 :27017 :test_hub database")]
     style MONGO fill:#dcfce7,stroke:#22c55e,color:#14532d
 ```
 
@@ -156,11 +156,11 @@ The single entry point for every operation. Follows the same style as the `trans
 
 ```mermaid
 graph TD
-    MAKE["make"]-->|"runs in order"| PRE["preflight\ncheck Docker · check Compose · check .env"]
-    PRE --> INSTALL["install\nnpm install"]
-    INSTALL --> UP["up\ndocker compose up -d"]
+    MAKE["make"]-->|"runs in order"| PRE["preflight : check Docker · check Compose · check .env"]
+    PRE --> INSTALL["install : npm install"]
+    INSTALL --> UP["up : docker compose up -d"]
 
-    MAKETEST["make test"]-->|"passes env vars"| RUNNER["npm run test\nDOMAIN · PRIORITY · TEST_ENV"]
+    MAKETEST["make test"]-->|"passes env vars"| RUNNER["npm run test : DOMAIN · PRIORITY · TEST_ENV"]
     MAKESEED["make seed"]-->SEED["npm run seed"]
     MAKEVAL["make validate"]-->VAL["npm run validate"]
 ```
@@ -186,9 +186,9 @@ The **only file in the repo that knows how to connect to MongoDB**. Everything e
 
 ```mermaid
 graph LR
-    SEED["scripts/seed.ts"]-->|"import"| DB["scripts/db.ts\nconnect · getDb · disconnect"]
+    SEED["scripts/seed.ts"]-->|"import"| DB["scripts/db.ts connect · getDb · disconnect"]
     VAL["scripts/validate.ts"]
-    CLI["runner/src/cli.ts\n(Phase 2)"]-->|"import"| DB
+    CLI["runner/src/cli.ts (Phase 2)"]-->|"import"| DB
     DB -->|"MongoClient"| MONGO[("MongoDB")]
 
     style DB fill:#ede9ve,stroke:#7c3aed,color:#3b1f6e
@@ -207,10 +207,10 @@ Reads every `.json` file recursively from `test-definitions/`, checks that requi
 
 ```mermaid
 flowchart LR
-    A["test-definitions/\n**/*.json"]-->|"fs.readFileSync"| B["Parse JSON"]
+    A["test-definitions/**/*.json"]-->|"fs.readFileSync"| B["Parse JSON"]
     B-->|"check required fields"| C{"Valid?"}
     C--No-->D["Skip + log error"]
-    C--Yes-->E["updateOne\nfilter: id\nupsert: true"]
+    C--Yes-->E["updateOne filter: id upsert: true"]
     E-->|"new doc"| F["Inserted +1"]
     E-->|"existing doc changed"| G["Updated +1"]
     E-->|"existing doc unchanged"| H["No change"]
@@ -342,7 +342,7 @@ Git is the source of truth for all code and configuration in this project. If Mo
 
 ```mermaid
 graph LR
-    GIT["Git\nJSON files\nsource of truth"]-->|"make seed\n(idempotent)"| MONGO[("MongoDB\nexecution engine\nindexed queries")]
+    GIT["Git<br/>JSON files<br/>source of truth"]-->|"make seed<br/>(idempotent)"| MONGO[("MongoDB<br/>execution engine<br/>indexed queries")]
     MONGO-->|"wiped?"| GIT
     MONGO-->|"make test"| RUNNER["Runner"]
 ```
@@ -356,11 +356,11 @@ graph LR
 ```mermaid
 graph TD
     subgraph LOCAL["Local dev"]
-        DC["docker-compose.yml"]-->LOCALMONGO[("mongo:7\n:27017")]
+        DC["docker-compose.yml"]-->LOCALMONGO[("mongo:7<br/>:27017")]
     end
 
     subgraph CI["GitHub Actions"]
-        SECRET["MONGO_URI secret"]-->ATLAS[("Atlas M0\nfree tier\nshared results")]
+        SECRET["MONGO_URI secret"]-->ATLAS[("Atlas M0<br/>free tier<br/>shared results")]
     end
 
     DEV["Developer"] -->|"make up"| LOCAL
@@ -467,13 +467,13 @@ Ordered by priority. Everything here is unblocked — it can start now.
 
 ```mermaid
 graph TD
-    NOW1["🔴 Now\nWrite smoke tests\nINFRA-002 · INFRA-003 · INFRA-004\nAUTH-001 · AUTH-002\nGW-001 · GW-002"]
-    NOW2["🔴 Now\nApply MongoDB indexes\nscripts/init-indexes.ts"]
-    NEXT1["🟡 Next\nBuild runner v1\nrunner/src/cli.ts\nHTTP GET/POST + result persistence"]
-    NEXT2["🟡 Next\nAtlas M0 setup\nCreate cluster · invite team\nAdd MONGO_URI to GitHub Secrets"]
-    THEN1["🟢 Then\nCI integration\nadd step to transcendence CI"]
-    THEN2["🟢 Then\nTeam training session\n45 min demo + hands-on"]
-    THEN3["🟢 Then\nResults dashboard\ndashboard/"]
+    NOW1["🔴 Now<br/>Write smoke tests<br/>INFRA-002 · INFRA-003 · INFRA-004<br/>AUTH-001 · AUTH-002<br/>GW-001 · GW-002"]
+    NOW2["🔴 Now<br/>Apply MongoDB indexes<br/>scripts/init-indexes.ts"]
+    NEXT1["🟡 Next<br/>Build runner v1<br/>runner/src/cli.ts<br/>HTTP GET/POST + result persistence"]
+    NEXT2["🟡 Next<br/>Atlas M0 setup<br/>Create cluster · invite team<br/>Add MONGO_URI to GitHub Secrets"]
+    THEN1["🟢 Then<br/>CI integration<br/>add step to transcendence CI"]
+    THEN2["🟢 Then<br/>Team training session<br/>45 min demo + hands-on"]
+    THEN3["🟢 Then<br/>Results dashboard<br/>dashboard/"]
 
     NOW1 --> NEXT1
     NOW2 --> NEXT1

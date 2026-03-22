@@ -10,10 +10,10 @@ In most testing frameworks, tests are code. Here, **tests are data**. You descri
 
 ```mermaid
 flowchart LR
-    A["1\nWrite JSON\ntest-definitions/"] --> B["2\nmake validate\ncheck schema"]
-    B --> C["3\nmake seed\nload into MongoDB"]
-    C --> D["4\nmake test\nrunner executes"]
-    D --> E["5\nResults\nMongoDB + terminal"]
+    A["1<br/>Write JSON<br/>test-definitions/"] --> B["2<br/>make validate<br/>check schema"]
+    B --> C["3<br/>make seed<br/>load into MongoDB"]
+    C --> D["4<br/>make test<br/>runner executes"]
+    D --> E["5<br/>Results<br/>MongoDB + terminal"]
 
     style A fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
     style B fill:#fef3c7,stroke:#d97706,color:#78350f
@@ -236,18 +236,18 @@ Check the folder before picking a number. Duplicate IDs cause the seed to silent
 
 ```mermaid
 flowchart TD
-    A["You have a behaviour\nto test"] --> B{"Does the title describe\nexactly ONE thing?"}
-    B -- No --> C["Split into multiple tests\none behaviour per file"]
-    B -- Yes --> D{"Can you write\nexpected.statusCode\nor bodyContains?"}
-    D -- No --> E["Clarify what\n'passing' means first"]
-    D -- Yes --> F{"Does it depend on\nother tests running first?"}
-    F -- Yes --> G["Add preconditions\nand dependencies fields"]
-    F -- No --> H["Set status: draft\nand run make validate"]
+    A["You have a behaviour<br/>to test"] --> B{"Does the title describe<br/>exactly ONE thing?"}
+    B -- No --> C["Split into multiple tests<br/>one behaviour per file"]
+    B -- Yes --> D{"Can you write<br/>expected.statusCode<br/>or bodyContains?"}
+    D -- No --> E["Clarify what<br/>'passing' means first"]
+    D -- Yes --> F{"Does it depend on<br/>other tests running first?"}
+    F -- Yes --> G["Add preconditions<br/>and dependencies fields"]
+    F -- No --> H["Set status: draft<br/>and run make validate"]
     G --> H
-    H --> I{"make validate\npasses?"}
-    I -- No --> J["Fix the errors\nshown in terminal"]
+    H --> I{"make validate<br/>passes?"}
+    I -- No --> J["Fix the errors<br/>shown in terminal"]
     J --> H
-    I -- Yes --> K["make seed\nthen commit"]
+    I -- Yes --> K["make seed<br/>then commit"]
 
     style A fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
     style K fill:#dcfce7,stroke:#22c55e,color:#14532d

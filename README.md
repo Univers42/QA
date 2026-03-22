@@ -1,4 +1,4 @@
-# prismatica-qa
+# PRISMATICA · QA
 
 *QA infrastructure for the Prismatica / ft_transcendence project — by Univers42, 2026.*
 
@@ -24,8 +24,8 @@ prismatica-qa is the dedicated QA repository for [ft_transcendence](https://gith
 Prerequisites: Docker, Node.js 20+.
 
 ```bash
-git clone https://github.com/Univers42/prismatica-qa.git
-cd prismatica-qa
+git clone https://github.com/Univers42/QA.git
+cd QA
 cp .env.example .env
 make
 ```
@@ -58,14 +58,14 @@ The services under test (Kong, GoTrue, PostgREST, etc.) must be running in `mini
 
 ```mermaid
 graph TB
-    JSON["test-definitions/\n*.json files"]
-    Seed["make seed\nscripts/seed.ts"]
-    Validate["make validate\nscripts/validate.ts"]
-    MongoDB[("MongoDB\ntest_hub · :27017")]
-    Runner["Runner\nrunner/src/cli.ts"]
-    Services["Services under test\nKong · GoTrue · PostgREST\nRealtime · MinIO · Frontend"]
-    Results["results collection\nMongoDB"]
-    Dashboard["Dashboard\nlocalhost:3003"]
+    JSON["test-definitions/*.json files"]
+    Seed["make seed : nscripts/seed.ts"]
+    Validate["make validate : scripts/validate.ts"]
+    MongoDB[("MongoDB : test_hub · :27017")]
+    Runner["Runner : runner/src/cli.ts"]
+    Services["Services under test : Kong · GoTrue · PostgREST<br/>Realtime · MinIO · Frontend"]
+    Results["results collection : MongoDB"]
+    Dashboard["Dashboard : localhost:3003"]
 
     JSON --> Validate
     JSON --> Seed
@@ -198,7 +198,7 @@ The runner reads test definitions from MongoDB, executes the HTTP calls defined 
 
 ## CI Integration
 
-This repo is called from the CI pipelines of `transcendence` and `mini-baas-infra` — it is not added as a submodule. Each pipeline clones `prismatica-qa` and runs the relevant smoke suite:
+This repo is called from the CI pipelines of `transcendence` and `mini-baas-infra` — it is not added as a submodule. Each pipeline clones `QA` and runs the relevant smoke suite:
 
 ```yaml
 # Example: in transcendence/.github/workflows/ci.yml
