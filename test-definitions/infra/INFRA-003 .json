@@ -17,7 +17,7 @@
   },
   "url": "http://localhost:9999/health",
   "method": "GET",
-  "author": "dlesieur",
+  "author": "vjan-nie",
   "phase": "phase-0",
   "status": "active",
   "notes": "Requires CREATE SCHEMA auth in PostgreSQL before GoTrue can start."

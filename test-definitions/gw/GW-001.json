@@ -17,7 +17,7 @@
   },
   "url": "http://localhost:8000/auth/health",
   "method": "GET",
-  "author": "dlesieur",
+  "author": "vjan-nie",
   "phase": "phase-0",
   "status": "draft",
   "notes": "Set active once Kong is added to docker-compose and kong.yaml defines the auth route."

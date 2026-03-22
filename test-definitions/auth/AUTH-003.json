@@ -14,9 +14,9 @@
   "expected": {
     "statusCode": 401
   },
-  "url": "http://localhost:9999/auth/v1/user",
+  "url": "http://localhost:9999/user",
   "method": "GET",
-  "author": "dlesieur",
+  "author": "vjan-nie",
   "phase": "phase-1",
   "status": "active",
   "notes": "No Authorization header sent — GoTrue must reject with 401."

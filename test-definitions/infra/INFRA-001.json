@@ -20,6 +20,6 @@
   "method": "GET",
   "author": "vjan-nie",
   "phase": "phase-0",
-  "status": "active",
-  "notes": "If this test fails, no other test can run. Check make up."
+  "status": "skipped",
+  "notes": "MongoDB does not speak HTTP. This test cannot be executed by the HTTP runner. Requires a dedicated MongoDB ping script."
 }

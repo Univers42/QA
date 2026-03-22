@@ -16,7 +16,7 @@
   },
   "url": "http://localhost:9000/",
   "method": "GET",
-  "author": "dlesieur",
+  "author": "vjan-nie",
   "phase": "phase-0",
   "status": "active",
   "notes": "MinIO returns 403 on unauthenticated root requests — this is correct behaviour, not an error."

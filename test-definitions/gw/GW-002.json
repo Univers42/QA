@@ -16,7 +16,7 @@
   },
   "url": "http://localhost:8000/auth/health",
   "method": "GET",
-  "author": "dlesieur",
+  "author": "vjan-nie",
   "phase": "phase-0",
   "status": "draft",
   "notes": "Requires runner support for repeated requests. Single HTTP call cannot trigger rate limit alone."

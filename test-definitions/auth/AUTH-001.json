@@ -27,7 +27,7 @@
     "email": "test@prismatica.dev",
     "password": "TestPassword42!"
   },
-  "author": "dlesieur",
+  "author": "vjan-nie",
   "phase": "phase-1",
   "status": "draft",
   "notes": "Set active once bootstrap script seeds the test user."
