@@ -1,0 +1,23 @@
+{
+  "id": "AUTH-003",
+  "title": "Request to protected endpoint without token returns 401",
+  "description": "GET to GoTrue user endpoint without Authorization header. Must return 401.",
+  "domain": "auth",
+  "type": "integration",
+  "layer": "backend",
+  "priority": "P1",
+  "tags": ["gotrue", "jwt", "unauthorized"],
+  "service": "auth-service",
+  "environment": ["local"],
+  "dependencies": ["postgres"],
+  "preconditions": ["GoTrue running on :9999"],
+  "expected": {
+    "statusCode": 401
+  },
+  "url": "http://localhost:9999/auth/v1/user",
+  "method": "GET",
+  "author": "dlesieur",
+  "phase": "phase-1",
+  "status": "active",
+  "notes": "No Authorization header sent — GoTrue must reject with 401."
+}

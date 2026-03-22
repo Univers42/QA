@@ -1,0 +1,24 @@
+{
+  "id": "INFRA-003",
+  "title": "GoTrue auth service responds on port 9999",
+  "description": "Verifies GoTrue health endpoint is reachable. Required before any auth test can run.",
+  "domain": "infra",
+  "type": "smoke",
+  "layer": "infra",
+  "priority": "P0",
+  "tags": ["gotrue", "auth", "smoke"],
+  "service": "auth-service",
+  "environment": ["local"],
+  "dependencies": ["postgres"],
+  "preconditions": ["make compose-up executed", "auth schema created in PostgreSQL"],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["version"]
+  },
+  "url": "http://localhost:9999/health",
+  "method": "GET",
+  "author": "dlesieur",
+  "phase": "phase-0",
+  "status": "active",
+  "notes": "Requires CREATE SCHEMA auth in PostgreSQL before GoTrue can start."
+}

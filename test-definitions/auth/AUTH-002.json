@@ -1,0 +1,31 @@
+{
+  "id": "AUTH-002",
+  "title": "Login with invalid credentials returns 400",
+  "description": "POST to GoTrue with wrong password. Must return 4xx — not 200.",
+  "domain": "auth",
+  "type": "integration",
+  "layer": "backend",
+  "priority": "P0",
+  "tags": ["gotrue", "login", "negative"],
+  "service": "auth-service",
+  "environment": ["local"],
+  "dependencies": ["postgres"],
+  "preconditions": ["GoTrue running on :9999"],
+  "expected": {
+    "statusCode": 400,
+    "bodyContains": ["error"]
+  },
+  "url": "http://localhost:9999/auth/v1/token?grant_type=password",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "payload": {
+    "email": "nobody@prismatica.dev",
+    "password": "wrongpassword"
+  },
+  "author": "dlesieur",
+  "phase": "phase-1",
+  "status": "active",
+  "notes": "Negative test — no user needed. GoTrue should reject unknown credentials."
+}
