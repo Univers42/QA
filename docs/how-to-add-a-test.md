@@ -8,6 +8,14 @@ This guide explains how to write a test definition for the Prismatica QA Test Hu
 
 In most testing frameworks, tests are code. Here, **tests are data**. You describe the expected behaviour in a JSON document. The runner reads that document, makes the HTTP call, and checks the response. You never touch the runner code to add a new test.
 
+If you do not want to write the JSON manually, use:
+
+```bash
+python3 -m prismatica_qa add
+```
+
+The CLI asks only the minimum fields, generates the next ID automatically, writes the JSON in the correct folder and can sync it to MongoDB / Atlas.
+
 ```mermaid
 flowchart LR
     A["1<br/>Write JSON<br/>test-definitions/"] --> B["2<br/>make validate<br/>check schema"]

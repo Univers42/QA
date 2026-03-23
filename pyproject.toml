@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prismatica-qa-cli"
+version = "0.1.0"
+description = "Python automation for Prismatica QA test authoring, sync and execution"
+requires-python = ">=3.12"
+dependencies = [
+  "pymongo>=4.10.1",
+  "rich>=13.9.4",
+]
+
+[project.scripts]
+prismatica-qa = "prismatica_qa.cli:main"
+

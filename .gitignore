@@ -12,6 +12,9 @@ yarn-error.log*
 # Build outputs
 dist/
 build/
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # Coverage
 coverage/

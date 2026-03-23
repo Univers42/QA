@@ -169,6 +169,20 @@ Each test belongs to one domain. The domain determines the ID prefix and which s
 
 Full guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)
 
+### Python CLI
+
+For developers who should not touch JSON by hand, use the Python CLI:
+
+```bash
+python3 -m prismatica_qa add
+python3 -m prismatica_qa run --type integration --domain auth
+```
+
+What it does:
+- `add` asks the minimum questions, generates the next ID, creates the JSON and can sync it to MongoDB
+- `run` syncs definitions, loads tests from MongoDB, runs them in parallel and compares against the previous stored result
+- `sync` upserts all JSON definitions into MongoDB / Atlas without manual MongoDB commands
+
 ---
 
 ## Running Tests
@@ -190,6 +204,9 @@ make test DOMAIN=auth PRIORITY=P1
 
 # Against a specific environment
 make test ENV=staging
+
+# Python runner with comparison against the last stored run
+python3 -m prismatica_qa run --domain auth --type integration
 ```
 
 The runner reads test definitions from MongoDB, executes the HTTP calls defined in each document, and writes results back to the `results` collection. Output is a table in the terminal showing `passed/failed` and duration per test.
