@@ -1,0 +1,24 @@
+{
+  "name": "prismatica-qa",
+  "version": "1.0.0",
+  "description": "Prismatica QA · Test Hub — DDA + MongoDB",
+  "private": true,
+  "scripts": {
+    "seed": "ts-node scripts/seed.ts",
+    "test": "ts-node runner/src/cli.ts",
+    "validate": "ts-node scripts/validate.ts",
+    "dev": "ts-node --watch runner/src/cli.ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.4.0",
+    "mongodb": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ajv": "^8.12.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  }
+}

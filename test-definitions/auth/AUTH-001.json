@@ -1,0 +1,34 @@
+{
+  "id": "AUTH-001",
+  "title": "Login with valid credentials returns access token",
+  "description": "POST to GoTrue token endpoint with correct email and password. Response must contain access_token.",
+  "domain": "auth",
+  "type": "integration",
+  "layer": "backend",
+  "priority": "P0",
+  "tags": ["gotrue", "jwt", "login"],
+  "service": "auth-service",
+  "environment": ["local"],
+  "dependencies": ["postgres"],
+  "preconditions": [
+    "GoTrue running on :9999",
+    "Test user exists: test@prismatica.dev / TestPassword42!"
+  ],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["access_token", "refresh_token"]
+  },
+  "url": "http://localhost:9999/auth/v1/token?grant_type=password",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "payload": {
+    "email": "test@prismatica.dev",
+    "password": "TestPassword42!"
+  },
+  "author": "vjan-nie",
+  "phase": "phase-1",
+  "status": "draft",
+  "notes": "Set active once bootstrap script seeds the test user."
+}

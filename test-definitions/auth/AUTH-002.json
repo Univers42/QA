@@ -1,0 +1,31 @@
+{
+  "id": "AUTH-002",
+  "title": "Login with invalid credentials returns 400",
+  "description": "POST to GoTrue with wrong password. Must return 4xx — not 200.",
+  "domain": "auth",
+  "type": "integration",
+  "layer": "backend",
+  "priority": "P0",
+  "tags": ["gotrue", "login", "negative"],
+  "service": "auth-service",
+  "environment": ["local"],
+  "dependencies": ["postgres"],
+  "preconditions": ["GoTrue running on :9999"],
+  "expected": {
+    "statusCode": 400,
+    "bodyContains": ["error"]
+  },
+  "url": "http://localhost:9999/auth/v1/token?grant_type=password",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "payload": {
+    "email": "nobody@prismatica.dev",
+    "password": "wrongpassword"
+  },
+  "author": "vjan-nie",
+  "phase": "phase-1",
+  "status": "skipped",
+  "notes": "GoTrue returns 500 Database error querying schema — auth migrations incomplete. Reactivate once bootstrap script seeds the auth schema correctly."
+}

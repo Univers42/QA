@@ -1,0 +1,22 @@
+{
+  "id": "DOMAIN-NNN",
+  "title": "Short description: what should happen",
+  "description": "Detailed explanation of the expected behaviour.",
+  "domain": "auth|schema|api|realtime|storage|gateway|ui|infra",
+  "type": "unit|integration|e2e|smoke|contract",
+  "layer": "backend|frontend|infra|full-stack",
+  "priority": "P0|P1|P2|P3",
+  "tags": ["tag1", "tag2"],
+  "service": "service-name",
+  "preconditions": ["..."],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["expected_field"]
+  },
+  "url": "http://localhost:8000/route",
+  "method": "GET|POST|PATCH|DELETE",
+  "script": "tests/domain/name.test.ts",
+  "author": "your_42_login",
+  "phase": "phase-N",
+  "status": "draft"
+}
