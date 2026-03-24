@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prismatica-qa"
+version = "3.0.0"
+description = "QA infrastructure for Prismatica / ft_transcendence"
+requires-python = ">=3.11"
+dependencies = [
+    "pymongo>=4.6.0",
+    "pydantic>=2.5.0",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "websockets>=12.0",
+    "httpx>=0.26.0",
+    "typer[all]>=0.9.0",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+pqa = "cli.main:app"
+
+[tool.setuptools.packages.find]
+include = ["core*", "runner*", "api*", "cli*"]
