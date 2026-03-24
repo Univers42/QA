@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: prismatica-qa
+Version: 3.0.0
+Summary: QA infrastructure for Prismatica / ft_transcendence
+Requires-Python: >=3.11
+Requires-Dist: pymongo>=4.6.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: fastapi>=0.109.0
+Requires-Dist: uvicorn[standard]>=0.27.0
+Requires-Dist: websockets>=12.0
+Requires-Dist: httpx>=0.26.0
+Requires-Dist: typer[all]>=0.9.0
+Requires-Dist: rich>=13.0.0
