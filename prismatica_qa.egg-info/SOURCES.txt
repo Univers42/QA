@@ -4,6 +4,8 @@ api/__init__.py
 cli/__init__.py
 core/__init__.py
 core/db.py
+core/git_export.py
+core/schema.py
 prismatica_qa.egg-info/PKG-INFO
 prismatica_qa.egg-info/SOURCES.txt
 prismatica_qa.egg-info/dependency_links.txt
