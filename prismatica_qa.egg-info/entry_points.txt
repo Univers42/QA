@@ -1,2 +1,0 @@
-[console_scripts]
-pqa = cli.main:app

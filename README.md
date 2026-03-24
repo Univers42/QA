@@ -2,7 +2,7 @@
 
 *QA infrastructure for the Prismatica / ft_transcendence project — by Univers42, 2026.*
 
-prismatica-qa is the dedicated QA repository for [ft_transcendence](https://github.com/Univers42/transcendence). It implements a **Data-Driven Automation (DDA)** strategy: tests are defined as JSON documents stored in MongoDB, executed by a generic Node.js runner, and results persisted for dashboard reporting. No test framework lock-in. No hardcoded assertions. Tests are data.
+prismatica-qa is the dedicated QA repository for [ft_transcendence](https://github.com/Univers42/transcendence). It implements a **Data-Driven Automation (DDA)** strategy: tests are defined as JSON documents, validated with Pydantic, stored in MongoDB Atlas, executed by a Python runner, and exposed through a FastAPI REST API. A React dashboard (built with libcss) and a CLI (`pqa`) both consume that API. No test framework lock-in. No hardcoded assertions. Tests are data.
 
 ---
 
@@ -13,6 +13,8 @@ prismatica-qa is the dedicated QA repository for [ft_transcendence](https://gith
 - [Test Domains](#test-domains)
 - [How to Add a Test](#how-to-add-a-test)
 - [Running Tests](#running-tests)
+- [API Reference](#api-reference)
+- [Dashboard](#dashboard)
 - [CI Integration](#ci-integration)
 - [Bibliography](#bibliography)
 - [Use of AI](#use-of-ai)
@@ -21,36 +23,37 @@ prismatica-qa is the dedicated QA repository for [ft_transcendence](https://gith
 
 ## Quick Start
 
-Prerequisites: Docker, Node.js 20+.
+Prerequisites: Python 3.11+, a MongoDB Atlas account (free M0 tier).
 
 ```bash
 git clone https://github.com/Univers42/QA.git
 cd QA
-cp .env.example .env
 make
 ```
 
-`make` checks Docker, installs Node dependencies, and starts MongoDB. Then load the test definitions:
+`make` verifies Python, creates a virtual environment, installs all dependencies, and registers the `pqa` CLI. Then configure your Atlas connection:
 
 ```bash
-make seed       # load test-definitions/ into MongoDB
-make validate   # validate all JSON files against schema
-make test       # run the full suite
+nano .env                          # set MONGO_URI_ATLAS with your Atlas connection string
+.venv/bin/python scripts/verify_setup.py   # confirm Atlas connects
+make migrate                       # load test-definitions/ into Atlas (run once)
 ```
 
 | Command | Description |
 |---------|-------------|
-| `make up` | Start MongoDB |
-| `make down` | Stop MongoDB |
-| `make seed` | Load / update test definitions from JSON files |
-| `make validate` | Validate JSON files against schema (blocks on error) |
+| `make` | Full setup: check Python, create venv, install deps |
+| `make api` | Start FastAPI server on `:8000` (Swagger UI at `/docs`) |
 | `make test` | Run all active tests |
 | `make test DOMAIN=auth` | Run tests for a specific domain |
 | `make test PRIORITY=P0` | Run only P0 (blocking) tests |
-| `make test DOMAIN=auth PRIORITY=P1 ENV=staging` | Combined filters |
+| `make list` | List all test definitions from Atlas |
+| `make migrate` | Load JSON test definitions into Atlas (idempotent) |
+| `make export` | Export tests from Atlas back to JSON files |
+| `make dashboard` | Start React dashboard on `:5173` |
+| `make clean` | Remove venv and caches |
 | `make help` | Show all available commands |
 
-The services under test (Kong, GoTrue, PostgREST, etc.) must be running in `mini-baas-infra` before executing tests. This repo only needs MongoDB running locally — it calls the other services by URL.
+The services under test (Kong, GoTrue, PostgREST, etc.) must be running in `mini-baas-infra` before executing tests. This repo only needs an Atlas connection — it calls the other services by URL.
 
 ---
 
@@ -58,65 +61,129 @@ The services under test (Kong, GoTrue, PostgREST, etc.) must be running in `mini
 
 ```mermaid
 graph TB
-    JSON["test-definitions/*.json files"]
-    Seed["make seed : nscripts/seed.ts"]
-    Validate["make validate : scripts/validate.ts"]
-    MongoDB[("MongoDB : test_hub · :27017")]
-    Runner["Runner : runner/src/cli.ts"]
-    Services["Services under test : Kong · GoTrue · PostgREST<br/>Realtime · MinIO · Frontend"]
-    Results["results collection : MongoDB"]
-    Dashboard["Dashboard : localhost:3003"]
+    subgraph CLIENTS["Clients — how humans interact"]
+        CLI["CLI · pqa test run / list / add"]
+        DASHBOARD["Dashboard · React + libcss · :5173"]
+    end
 
-    JSON --> Validate
-    JSON --> Seed
-    Seed --> MongoDB
-    MongoDB --> Runner
-    Runner -->|"HTTP calls"| Services
-    Runner --> Results
-    Results --> Dashboard
+    subgraph API_LAYER["API layer"]
+        API["FastAPI · :8000<br/>REST + WebSocket"]
+    end
 
-    style MongoDB fill:#dcfce7,stroke:#22c55e,color:#14532d
-    style Runner fill:#ede9fe,stroke:#7c3aed,color:#3b1f6e
-    style Services fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
-    style Dashboard fill:#fef3c7,stroke:#d97706,color:#78350f
-    style JSON fill:#f8fafc,stroke:#cbd5e1,color:#1e293b
+    subgraph CORE["Core — business logic"]
+        SCHEMA["Pydantic v2 · schema validation"]
+        RUNNER["Runner · httpx async + subprocess"]
+        EXPORT["git_export · JSON ↔ disk"]
+    end
+
+    subgraph DATA["Data"]
+        ATLAS[("MongoDB Atlas · test_hub<br/>tests + results collections")]
+        JSON["test-definitions/*.json<br/>git · source of truth for history"]
+    end
+
+    subgraph SERVICES["Services under test · mini-baas-infra"]
+        KONG["Kong · :8000"]
+        GOTRUE["GoTrue · :9999"]
+        POSTGREST["PostgREST · :3000"]
+        OTHER["Realtime · MinIO · Frontend"]
+    end
+
+    CLI -->|"HTTP / direct"| API
+    DASHBOARD -->|"HTTP + WebSocket"| API
+    API --> SCHEMA
+    API --> RUNNER
+    API --> EXPORT
+    SCHEMA --> ATLAS
+    RUNNER -->|"HTTP calls"| KONG
+    RUNNER -->|"HTTP calls"| GOTRUE
+    RUNNER -->|"HTTP calls"| POSTGREST
+    RUNNER -->|"HTTP calls"| OTHER
+    RUNNER --> ATLAS
+    EXPORT --> JSON
+
+    style CLIENTS fill:#fef3c7,stroke:#d97706,color:#78350f
+    style API_LAYER fill:#ede9fe,stroke:#7c3aed,color:#3b1f6e
+    style CORE fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style DATA fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style SERVICES fill:#f8fafc,stroke:#cbd5e1,color:#1e293b
 ```
 
 ### Three-layer model
 
 | Layer | What lives here | Technology |
 |-------|----------------|------------|
-| **Definitions** | What should happen — one JSON per test | Files in `test-definitions/` + MongoDB `tests` collection |
-| **Runner** | How it executes — reads MongoDB, calls services, writes results | Node.js + TypeScript |
-| **Results** | What happened — execution history and metrics | MongoDB `results` collection + React dashboard |
+| **Core** | Business logic — schema validation, test execution, result persistence, git export | Python · Pydantic v2 · httpx · pymongo |
+| **API** | REST interface — exposes the core as HTTP endpoints + WebSocket for live execution | FastAPI · uvicorn |
+| **Clients** | How humans interact — terminal CLI and web dashboard | typer + Rich (CLI) · React + libcss (dashboard) |
 
 ### Repository structure
 
 ```
 prismatica-qa/
-├── test-definitions/          # Source of truth for all tests (committed to git)
-│   ├── auth/                  # AUTH-NNN tests
-│   ├── gateway/               # GW-NNN tests
-│   ├── schema/                # SCH-NNN tests
-│   ├── api/                   # API-NNN tests
-│   ├── realtime/              # RT-NNN tests
-│   ├── storage/               # STG-NNN tests
-│   ├── ui/                    # UI-NNN tests
-│   └── infra/                 # INFRA-NNN tests
-├── runner/                    # Generic test runner
-│   └── src/
+├── core/                          # Business logic (no HTTP, no UI)
+│   ├── db.py                      # Atlas connection (pymongo)
+│   ├── schema.py                  # Pydantic v2 models: HttpTest, BashTest, ManualTest
+│   └── git_export.py              # Write tests to test-definitions/ as JSON
+├── runner/                        # Test execution engine
+│   ├── executor.py                # HTTP test executor (httpx async)
+│   ├── bash_executor.py           # Shell command executor (subprocess)
+│   ├── results.py                 # Persist results to Atlas
+│   └── ci.py                      # Minimal CI runner (no API dependency)
+├── api/                           # FastAPI REST API
+│   ├── main.py                    # App entrypoint + CORS
+│   ├── deps.py                    # Shared dependencies
+│   └── routers/
+│       ├── tests.py               # CRUD: GET/POST/PATCH/DELETE /tests
+│       ├── run.py                 # POST /tests/run + WebSocket /ws/run
+│       └── results.py             # GET /results + /results/summary
+├── cli/                           # pqa CLI (typer + Rich)
+│   ├── main.py                    # Entrypoint: pqa test <command>
+│   └── commands/
+│       ├── list_cmd.py            # pqa test list
+│       └── run_cmd.py             # pqa test run
+├── dashboard/                     # React + libcss (Phase 6)
+├── test-definitions/              # Source of truth for history (committed to git)
+│   ├── auth/                      # AUTH-NNN tests
+│   ├── gw/                        # GW-NNN tests
+│   ├── infra/                     # INFRA-NNN tests
+│   └── ...                        # api, realtime, storage, ui, schema
 ├── scripts/
-│   ├── db.ts                  # MongoDB connection (shared by all scripts)
-│   ├── seed.ts                # Loads test-definitions/ into MongoDB
-│   └── validate.ts            # Validates JSON against schema
-├── dashboard/                 # React results dashboard (Phase 4)
+│   ├── verify_setup.py            # Confirm Atlas connection works
+│   └── migrate_v1_to_v2.py        # One-time migration: JSON → Atlas
 ├── docs/
-│   ├── test-template.json     # Copy this to create a new test
-│   └── how-to-add-a-test.md   # Step-by-step guide
-├── docker-compose.yml         # MongoDB only
-├── Makefile
-└── .env.example
+│   ├── how-to-add-a-test.md       # Step-by-step guide
+│   ├── test-template.json         # Reference template
+│   └── strategy/                  # Roadmaps 0–4
+├── requirements.txt               # Python dependencies
+├── pyproject.toml                 # pqa entry point + project metadata
+├── Makefile                       # CLI interface for all operations
+└── .env.example                   # MONGO_URI_ATLAS + service URLs
 ```
+
+### Data flow
+
+```
+test-definitions/*.json                          Atlas (test_hub)
+  │                                                │
+  │  make migrate                                  │  pqa test list / run
+  │  (one-time: JSON → Atlas)                      │  (reads from Atlas)
+  │                                                │
+  └──────────────► tests collection ◄──────────────┘
+                        │
+                        │  pqa test run / make test
+                        ▼
+                   Runner (httpx)
+                        │
+                        │  HTTP calls to services
+                        ▼
+                   Services under test
+                        │
+                        │  response
+                        ▼
+                   results collection ──► Dashboard / CLI table
+```
+
+**Key principle:** JSON files in git are the historical source of truth. Atlas is the operational source of truth. They store different things — definitions vs execution state — and do not need to be synchronised.
 
 ---
 
@@ -144,28 +211,55 @@ Each test belongs to one domain. The domain determines the ID prefix and which s
 | `P2` | Important — degraded experience | Warning only |
 | `P3` | Nice to have | Report only |
 
+### Test types
+
+| Type | Executor | Use case |
+|------|----------|----------|
+| `http` | `runner/executor.py` | API calls — check status code, body content, JWT claims |
+| `bash` | `runner/bash_executor.py` | Shell commands — check exit code, stdout content |
+| `manual` | None (skipped) | Human verification — specifications not yet automated |
+
 ---
 
 ## How to Add a Test
 
-1. Copy `docs/test-template.json` to the correct domain folder:
-   ```bash
-   cp docs/test-template.json test-definitions/auth/AUTH-042.json
-   ```
+### Option A — Via the API (recommended)
 
-2. Fill in the fields. Required: `id`, `title`, `domain`, `type`, `layer`, `priority`, `expected`, `status`.
+With the API running (`make api`), send a POST request:
 
-3. Validate:
-   ```bash
-   make validate
-   ```
+```bash
+curl -X POST http://localhost:8000/tests \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "AUTH-004",
+    "title": "Token refresh returns new access_token",
+    "domain": "auth",
+    "priority": "P1",
+    "status": "draft",
+    "type": "http",
+    "url": "http://localhost:9999/auth/v1/token?grant_type=refresh_token",
+    "method": "POST",
+    "expected": {"statusCode": 200, "bodyContains": ["access_token"]}
+  }'
+```
 
-4. Seed into MongoDB:
-   ```bash
-   make seed
-   ```
+The API validates the test with Pydantic, writes it to Atlas, and exports the JSON file to `test-definitions/auth/AUTH-004.json`. Commit the file to git.
 
-5. Commit the JSON file. The test definition lives in git — MongoDB is the execution engine, not the source of truth.
+### Option B — Via the dashboard (once available)
+
+Open the dashboard, click "Add Test", fill in the form, and submit. The dashboard calls the same API endpoint.
+
+### Option C — Edit JSON directly
+
+Copy the template, fill in the fields, and run the migration:
+
+```bash
+cp docs/test-template.json test-definitions/auth/AUTH-004.json
+# edit the file
+make migrate
+```
+
+Required fields: `id`, `title`, `domain`, `priority`, `status`. For HTTP tests, also: `type`, `url`, `method`, `expected`.
 
 Full guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)
 
@@ -174,31 +268,69 @@ Full guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)
 ## Running Tests
 
 ```bash
-# Full suite
+# Full suite (all active tests)
 make test
 
 # By domain
 make test DOMAIN=auth
-make test DOMAIN=gateway
+make test DOMAIN=infra
 
-# By priority (P0 = blocking, P1 = critical)
+# By priority
 make test PRIORITY=P0
-make test PRIORITY=P1
 
 # Combined
 make test DOMAIN=auth PRIORITY=P1
 
-# Against a specific environment
-make test ENV=staging
+# List without executing
+make list
 ```
 
-The runner reads test definitions from MongoDB, executes the HTTP calls defined in each document, and writes results back to the `results` collection. Output is a table in the terminal showing `passed/failed` and duration per test.
+The runner reads active test definitions from Atlas, executes the HTTP or bash calls, persists results back to Atlas, and prints a pass/fail table in the terminal. Exit code is 1 if any test fails — CI compatible.
+
+---
+
+## API Reference
+
+Start the API with `make api`. Interactive documentation is auto-generated at:
+
+- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Health check |
+| `GET` | `/tests` | List tests (query: `domain`, `priority`, `status`) |
+| `GET` | `/tests/{id}` | Get a test by ID |
+| `POST` | `/tests` | Create a test (validates + exports JSON) |
+| `PATCH` | `/tests/{id}` | Update a test |
+| `DELETE` | `/tests/{id}` | Soft-delete (set status to deprecated) |
+| `POST` | `/tests/run` | Execute tests (query: `domain`, `priority`, `id`) |
+| `GET` | `/results` | List execution results (query: `test_id`, `passed`, `limit`) |
+| `GET` | `/results/summary` | Aggregate pass/fail by domain |
+| `WS` | `/ws/run` | WebSocket — stream results test by test in real time |
+
+---
+
+## Dashboard
+
+*Phase 6 — under development.*
+
+The dashboard is a React application built with [libcss](https://github.com/Univers42/transcendence) components (Button, FormField, ThemeToggle, SplitLayout) that consumes the FastAPI endpoints. It provides:
+
+- **Test list:** table with sorting, filtering by domain/priority/status, and per-row Run button
+- **Live execution:** WebSocket connection showing results as they arrive
+- **Test form:** create and edit tests through a guided form
+- **Result history:** execution timeline per test with pass/fail trends
+
+Start with `make dashboard` once the feature is implemented.
 
 ---
 
 ## CI Integration
 
-This repo is called from the CI pipelines of `transcendence` and `mini-baas-infra` — it is not added as a submodule. Each pipeline clones `QA` and runs the relevant smoke suite:
+This repo is called from the CI pipelines of `transcendence` and `mini-baas-infra` — it is not added as a submodule. Each pipeline clones `QA` and runs the smoke suite using the CI runner (no API server needed):
 
 ```yaml
 # Example: in transcendence/.github/workflows/ci.yml
@@ -206,16 +338,17 @@ This repo is called from the CI pipelines of `transcendence` and `mini-baas-infr
   run: |
     git clone https://github.com/Univers42/QA.git
     cd QA
-    cp .env.example .env
-    npm install
-    make test DOMAIN=auth PRIORITY=P0
+    pip install -r requirements.txt
+    python -m runner.ci --priority P0
   env:
-    MONGO_URI: ${{ secrets.MONGO_URI_ATLAS }}
-    KONG_URL: http://localhost:8000
+    MONGO_URI_ATLAS: ${{ secrets.MONGO_URI_ATLAS }}
     GOTRUE_URL: http://localhost:9999
+    POSTGREST_URL: http://localhost:3000
 ```
 
-Atlas M0 (free tier) is used as the MongoDB target in CI so results are shared across all contributors. Local development uses the Docker Compose MongoDB instance.
+The CI runner (`runner/ci.py`) imports the core directly — it does not start a FastAPI server. This keeps CI fast and dependency-light.
+
+Atlas M0 (free tier) is used as the shared MongoDB backend so results from all contributors and CI runs are visible in one place.
 
 ---
 
@@ -223,13 +356,15 @@ Atlas M0 (free tier) is used as the MongoDB target in CI so results are shared a
 
 | Resource | What it informed |
 |----------|-----------------|
-| [MongoDB Node.js Driver](https://www.mongodb.com/docs/drivers/node/current/) | Driver API — `updateOne` with upsert, aggregation pipeline, typed collections |
-| [AJV — Another JSON Validator](https://ajv.js.org/) | JSON Schema validation for test document definitions |
-| [The Practical Test Pyramid — Martin Fowler](https://martinfowler.com/articles/practical-test-pyramid.html) | Test type classification (unit, integration, e2e, contract) and the smoke/contract distinction |
+| [FastAPI Documentation](https://fastapi.tiangolo.com/) | REST API design, dependency injection, WebSocket support |
+| [Pydantic v2 Documentation](https://docs.pydantic.dev/) | Schema validation, discriminated unions, model inheritance |
+| [MongoDB pymongo Driver](https://pymongo.readthedocs.io/) | Atlas connection, upsert, aggregation pipeline, TTL indexes |
+| [typer Documentation](https://typer.tiangolo.com/) | CLI framework — subcommands, autocompletion, help generation |
+| [Rich Documentation](https://rich.readthedocs.io/) | Terminal tables, colours, progress bars |
+| [httpx Documentation](https://www.python-httpx.org/) | Async HTTP client for test execution |
+| [The Practical Test Pyramid — Martin Fowler](https://martinfowler.com/articles/practical-test-pyramid.html) | Test type classification and the smoke/contract distinction |
 | [Data-Driven Testing — SmartBear](https://smartbear.com/learn/automated-testing/data-driven-testing/) | DDA philosophy: separating test data from test logic |
-| [MongoDB Schema Design Patterns](https://www.mongodb.com/blog/post/building-with-patterns-a-summary) | Embedding vs referencing — why `results` is a separate collection from `tests` |
 | [Conventional Commits 1.0](https://www.conventionalcommits.org/) | Commit format consistent with `transcendence` |
-| [GitHub Actions — Service Containers](https://docs.github.com/en/actions/using-containerized-services/about-service-containers) | Running MongoDB in CI without a managed Atlas connection |
 
 ---
 
@@ -237,14 +372,15 @@ Atlas M0 (free tier) is used as the MongoDB target in CI so results are shared a
 
 AI tools were used during development of this repository. Concretely:
 
-- **Architecture decisions** — the DDA approach, repo separation rationale, MongoDB schema design were discussed with Claude and iterated on
-- **Scaffolding** — initial file structure, TypeScript types, seed and validate scripts
-- **Documentation** — this README, `how-to-add-a-test.md`, inline code comments
+- **Architecture decisions** — the DDA approach, repo separation rationale, MongoDB schema design, the three-layer architecture (Core → API → Clients), and the decision to use Atlas as sole operational backend were discussed with Claude and iterated on
+- **Scaffolding** — repository structure, Pydantic models, FastAPI routers, CLI commands, Makefile, migration scripts
+- **Documentation** — this README, `how-to-add-a-test.md`, roadmap documents, inline code comments
 
-What AI did not do: decide which tests to write, define what correct behaviour looks like for each service, or commit anything without being read and understood first. Test definitions — the JSON documents that encode expected behaviour — are written by the team based on the State of the Art document and direct knowledge of the system under test.
+What AI did not do: decide which tests to write, define what correct behaviour looks like for each service, configure MongoDB Atlas, or commit anything without being read and understood first. Test definitions — the JSON documents that encode expected behaviour — are written by the team based on the State of the Art document and direct knowledge of the system under test.
 
 ---
 
 *Detailed test authoring guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)*
+*Architecture and session history: [docs/strategy/](docs/strategy/)*
 *Main project repository: [Univers42/transcendence](https://github.com/Univers42/transcendence)*
 *Infrastructure repository: [Univers42/mini-baas-infra](https://github.com/Univers42/mini-baas-infra)*
