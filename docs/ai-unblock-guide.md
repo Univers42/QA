@@ -261,7 +261,11 @@ The services under test (running separately in mini-baas-infra):
 - MinIO :9000 — object storage
 - React frontend :5173
 
-Test document required fields: id, title, domain, type, layer, priority, expected, status
+Test document base required fields: id, title, domain, priority, status
+Derived type-specific fields:
+- http: type, url, method, expected.statusCode
+- bash: type, script
+- manual: type is optional, notes is optional
 Domains: auth, gateway, schema, api, realtime, storage, ui, infra
 Priority: P0 (blocks merge), P1 (critical), P2, P3
 Status: active (runner executes), draft (runner skips), deprecated, skipped

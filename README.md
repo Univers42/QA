@@ -153,7 +153,8 @@ Each test belongs to one domain. The domain determines the ID prefix and which s
    cp docs/test-template.json test-definitions/auth/AUTH-042.json
    ```
 
-2. Fill in the fields. Required: `id`, `title`, `domain`, `type`, `layer`, `priority`, `expected`, `status`.
+2. Fill in the fields. Base required fields: `id`, `title`, `domain`, `priority`, `status`.
+   Type-specific fields depend on the test type: `http`, `bash`, or `manual`.
 
 3. Validate:
    ```bash
@@ -171,17 +172,25 @@ Full guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)
 
 ### Python CLI
 
-For developers who should not touch JSON by hand, use the Python CLI:
+For developers who should not touch JSON by hand, use the Python CLI. In the current setup, persistence is local and the source of truth is the JSON committed in the repository:
 
 ```bash
 python3 -m prismatica_qa add
-python3 -m prismatica_qa run --type integration --domain auth
+python3 -m prismatica_qa run --type http --layer integration --domain auth
+python3 -m prismatica_qa export --domain auth
 ```
 
 What it does:
-- `add` asks the minimum questions, generates the next ID, creates the JSON and can sync it to MongoDB
-- `run` syncs definitions, loads tests from MongoDB, runs them in parallel and compares against the previous stored result
-- `sync` upserts all JSON definitions into MongoDB / Atlas without manual MongoDB commands
+- `add` asks the minimum questions, validates a base model plus the correct derived model for the selected test type, creates the JSON and can sync it to local MongoDB
+- `run` syncs the JSON definitions to local MongoDB, loads tests from MongoDB, validates them again, runs them in parallel and compares against the previous stored result
+- `export` writes local MongoDB definitions back to JSON if needed
+- `sync` upserts the JSON definitions into local MongoDB without manual MongoDB commands
+- supported test types are `http`, `bash`, and `manual`
+
+Important in this local mode:
+- JSON files are the source of truth
+- local MongoDB is only a synchronized execution store
+- users must verify on their own that they have the latest repository version before adding, syncing, or running tests
 
 ---
 
@@ -206,10 +215,10 @@ make test DOMAIN=auth PRIORITY=P1
 make test ENV=staging
 
 # Python runner with comparison against the last stored run
-python3 -m prismatica_qa run --domain auth --type integration
+python3 -m prismatica_qa run --domain auth --type http --layer integration
 ```
 
-The runner reads test definitions from MongoDB, executes the HTTP calls defined in each document, and writes results back to the `results` collection. Output is a table in the terminal showing `passed/failed` and duration per test.
+The Python runner first syncs the JSON definitions into local MongoDB, then reads test definitions from MongoDB, executes the HTTP calls defined in each document, and writes results back to the `results` collection. Output is a table in the terminal showing `passed/failed`, duration and comparison against the previous stored run.
 
 ---
 

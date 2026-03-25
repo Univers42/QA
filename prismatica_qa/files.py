@@ -6,34 +6,33 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from .catalog import DOMAINS, METHODS, PRIORITIES, STATUSES, TEST_TYPES, normalize_domain
+from .catalog import DOMAINS, normalize_domain
+from .models import canonicalize_test, validation_errors as model_validation_errors
 
-REQUIRED_FIELDS = ("id", "title", "domain", "type", "layer", "priority", "expected", "status")
+REQUIRED_FIELDS = ("id", "title", "domain", "priority", "status")
 FIELD_ORDER = (
     "id",
     "title",
     "description",
     "domain",
     "type",
-    "layer",
     "priority",
+    "status",
     "tags",
-    "service",
-    "component",
+    "phase",
+    "layer",
     "environment",
-    "dependencies",
     "preconditions",
-    "expected",
+    "notes",
     "url",
     "method",
     "headers",
     "payload",
-    "timeout_ms",
-    "retries",
-    "author",
-    "phase",
-    "status",
-    "notes",
+    "timeout_seconds",
+    "expected",
+    "script",
+    "expected_exit_code",
+    "expected_output",
 )
 
 ID_RE = re.compile(r"^(?P<prefix>[A-Z]+)-(?P<number>\d+)$")
@@ -73,37 +72,10 @@ def read_definition_files(tests_dir: Path, domain: str | None = None) -> list[De
 
 
 def validation_errors(doc: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
-
     for field in REQUIRED_FIELDS:
         if field not in doc or doc[field] in (None, ""):
-            errors.append(f"Missing required field: {field}")
-
-    domain = doc.get("domain")
-    if domain and domain not in DOMAINS:
-        errors.append(f"Invalid domain: {domain}")
-
-    test_type = doc.get("type")
-    if test_type and test_type not in TEST_TYPES:
-        errors.append(f"Invalid type: {test_type}")
-
-    priority = doc.get("priority")
-    if priority and priority not in PRIORITIES:
-        errors.append(f"Invalid priority: {priority}")
-
-    status = doc.get("status")
-    if status and status not in STATUSES:
-        errors.append(f"Invalid status: {status}")
-
-    method = doc.get("method")
-    if method and method not in METHODS:
-        errors.append(f"Invalid method: {method}")
-
-    expected = doc.get("expected")
-    if expected is not None and not isinstance(expected, dict):
-        errors.append("Field 'expected' must be an object")
-
-    return errors
+            return [f"Missing required field: {field}"]
+    return model_validation_errors(doc)
 
 
 def next_test_id(domain: str, tests_dir: Path) -> str:
@@ -127,6 +99,7 @@ def definition_path(tests_dir: Path, domain: str, test_id: str) -> Path:
 
 
 def compact_definition(doc: dict[str, Any]) -> dict[str, Any]:
+    doc = canonicalize_test(doc)
     compact: dict[str, Any] = {}
 
     for key in FIELD_ORDER:
@@ -159,4 +132,3 @@ def write_definition(path: Path, doc: dict[str, Any]) -> None:
         json.dumps(compact_definition(doc), indent=2, ensure_ascii=True) + "\n",
         encoding="utf-8",
     )
-

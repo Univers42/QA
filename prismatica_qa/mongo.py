@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
+from .catalog import DOMAINS
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -18,15 +20,17 @@ class MongoStore:
             raise MongoUnavailableError("MONGO_URI is not configured.")
 
         try:
-            from pymongo import MongoClient, UpdateOne
-            from pymongo.errors import ConfigurationError
+            from pymongo import MongoClient, ReturnDocument, UpdateOne
+            from pymongo.errors import ConfigurationError, DuplicateKeyError
         except ImportError as exc:
             raise MongoUnavailableError(
                 "pymongo is not installed. Run `pip install -e .` or `pip install pymongo rich`."
             ) from exc
 
         self._UpdateOne = UpdateOne
+        self._ReturnDocument = ReturnDocument
         self._ConfigurationError = ConfigurationError
+        self._DuplicateKeyError = DuplicateKeyError
         self._client = MongoClient(mongo_uri)
 
         try:
@@ -37,16 +41,48 @@ class MongoStore:
         self.tests = self._db["tests"]
         self.results = self._db["results"]
         self.suites = self._db["suites"]
+        self.counters = self._db["counters"]
 
     def close(self) -> None:
         self._client.close()
 
     def ensure_indexes(self) -> None:
         self.tests.create_index("id", unique=True)
-        self.tests.create_index([("domain", 1), ("type", 1), ("priority", 1), ("status", 1)])
+        self.tests.create_index([("domain", 1), ("type", 1), ("layer", 1), ("priority", 1), ("status", 1)])
+        self.tests.create_index("environment")
         self.results.create_index([("test_id", 1), ("environment", 1), ("executed_at", -1)])
+        self.results.create_index([("environment", 1), ("domain", 1), ("type", 1), ("executed_at", -1)])
+        self.results.create_index([("environment", 1), ("comparison", 1), ("executed_at", -1)])
         self.results.create_index("run_id")
         self.suites.create_index("name", unique=True)
+        self.counters.create_index("scope", unique=True)
+
+    def next_test_id(self, domain: str) -> str:
+        spec = DOMAINS[domain]
+        scope = f"test_id:{domain}"
+        if self.counters.find_one({"scope": scope}) is None:
+            highest = 0
+            cursor = self.tests.find({"domain": domain}, {"id": 1, "_id": 0})
+            for row in cursor:
+                raw_id = str(row.get("id", ""))
+                if not raw_id.startswith(f"{spec.prefix}-"):
+                    continue
+                try:
+                    highest = max(highest, int(raw_id.split("-", 1)[1]))
+                except (IndexError, ValueError):
+                    continue
+            try:
+                self.counters.insert_one({"scope": scope, "value": highest})
+            except self._DuplicateKeyError:
+                pass
+
+        counter = self.counters.find_one_and_update(
+            {"scope": scope},
+            {"$inc": {"value": 1}, "$setOnInsert": {"scope": scope}},
+            upsert=True,
+            return_document=self._ReturnDocument.AFTER,
+        )
+        return f"{spec.prefix}-{int(counter['value']):03d}"
 
     def upsert_tests(self, docs: Iterable[dict[str, Any]]) -> dict[str, int]:
         summary = {"inserted": 0, "updated": 0, "unchanged": 0}
@@ -77,6 +113,7 @@ class MongoStore:
         *,
         domain: str | None,
         test_type: str | None,
+        layer: str | None,
         priority: str | None,
         status: str | None,
         environment: str,
@@ -87,6 +124,8 @@ class MongoStore:
             query["domain"] = domain
         if test_type:
             query["type"] = test_type
+        if layer:
+            query["layer"] = layer
         if priority:
             query["priority"] = priority
         if status and status != "all":
@@ -98,6 +137,19 @@ class MongoStore:
             {"environment": environment},
         ]
 
+        return list(self.tests.find(query).sort("id", 1))
+
+    def fetch_definitions(
+        self,
+        *,
+        domain: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        query: dict[str, Any] = {}
+        if domain:
+            query["domain"] = domain
+        if status and status != "all":
+            query["status"] = status
         return list(self.tests.find(query).sort("id", 1))
 
     def latest_results_map(self, test_ids: list[str], environment: str) -> dict[str, dict[str, Any]]:
@@ -131,6 +183,14 @@ class MongoStore:
             document = {
                 "run_id": run_id,
                 "test_id": test["id"],
+                "title": test["title"],
+                "domain": test["domain"],
+                "type": test.get("type", "manual"),
+                "layer": test.get("layer"),
+                "priority": test["priority"],
+                "status": test["status"],
+                "tags": test.get("tags", []),
+                "phase": test.get("phase"),
                 "run_by": run_by,
                 "environment": environment,
                 "executed_at": executed_at,
@@ -163,4 +223,3 @@ class MongoStore:
         if documents:
             self.results.insert_many(documents)
             self.tests.bulk_write(updates, ordered=False)
-

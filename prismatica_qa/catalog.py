@@ -30,16 +30,19 @@ DOMAIN_ALIASES = {
     "gateway": "gateway",
 }
 
-TEST_TYPES = ("unit", "integration", "e2e", "smoke", "contract")
+TEST_KINDS = ("http", "bash", "manual")
+LAYERS = ("unit", "integration", "e2e", "contract", "smoke")
+LEGACY_TEST_TYPES = ("unit", "integration", "e2e", "smoke", "contract")
+LEGACY_EXECUTORS = ("http", "script", "manual")
 PRIORITIES = ("P0", "P1", "P2", "P3")
 STATUSES = ("active", "draft", "deprecated", "skipped")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
 BODY_METHODS = {"POST", "PUT", "PATCH"}
 
-DEFAULT_TYPE = "integration"
+DEFAULT_TEST_KIND = "http"
+DEFAULT_LAYER = "integration"
 DEFAULT_PRIORITY = "P1"
 DEFAULT_STATUS = "draft"
-DEFAULT_PHASE = "phase-0"
 
 
 def normalize_domain(value: str) -> str:
@@ -49,4 +52,3 @@ def normalize_domain(value: str) -> str:
         allowed = ", ".join(DOMAINS)
         raise ValueError(f"Invalid domain '{value}'. Allowed values: {allowed}")
     return normalized
-

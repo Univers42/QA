@@ -14,7 +14,9 @@ If you do not want to write the JSON manually, use:
 python3 -m prismatica_qa add
 ```
 
-The CLI asks only the minimum fields, generates the next ID automatically, writes the JSON in the correct folder and can sync it to MongoDB / Atlas.
+The CLI asks only the minimum fields, generates the next ID automatically from the JSON files, validates the correct model for the selected test type, writes the JSON in the repository, and can then sync it to local MongoDB.
+In the current project mode, JSON is the source of truth and MongoDB is local. Before creating or running tests, the user must verify on their own that the repository is up to date.
+Supported test types are `http`, `bash`, and `manual`.
 
 ```mermaid
 flowchart LR
@@ -71,17 +73,14 @@ Open the file and fill in each field. Here is what every field means:
 
 ### Required fields
 
-These eight fields must always be present. `make validate` will reject the file if any are missing.
+These five fields are the minimum valid model for any test. `make validate` will reject the file if any are missing.
 
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
 | `id` | string | Unique identifier. Format: `DOMAIN-NNN` | `"AUTH-003"` |
 | `title` | string | One sentence: what should happen. Start with the subject. | `"Login with valid credentials returns access token"` |
 | `domain` | string | One of the 8 domains above | `"auth"` |
-| `type` | string | `unit` · `integration` · `e2e` · `smoke` · `contract` | `"integration"` |
-| `layer` | string | `backend` · `frontend` · `infra` · `full-stack` | `"backend"` |
 | `priority` | string | `P0` · `P1` · `P2` · `P3` (see below) | `"P1"` |
-| `expected` | object | What a passing response looks like | `{ "statusCode": 200 }` |
 | `status` | string | `active` · `draft` · `deprecated` · `skipped` | `"draft"` |
 
 **Priority guide:**
@@ -97,32 +96,59 @@ These eight fields must always be present. `make validate` will reject the file 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `description` | string | Full explanation of what this test verifies and why it matters |
-| `service` | string | The service name under test (`auth-service`, `dynamic-api`, etc.) |
+| `type` | string | `http` · `bash` · `manual` |
+| `layer` | string | `unit` · `integration` · `e2e` · `contract` · `smoke` |
 | `tags` | array | Keywords for filtering (`["oauth", "jwt", "42school"]`) |
 | `preconditions` | array | What must be true before this test runs (`["GoTrue running on :9999"]`) |
-| `dependencies` | array | Services that must be up (`["postgres", "redis"]`) |
-| `url` | string | The endpoint being called |
-| `method` | string | HTTP method: `GET` · `POST` · `PATCH` · `DELETE` |
-| `payload` | object | Request body for POST/PATCH requests |
-| `headers` | object | Additional HTTP headers |
 | `phase` | string | Migration phase this test belongs to (`"phase-0"`, `"phase-1"`, etc.) |
-| `author` | string | Your 42 login |
+| `environment` | array | Allowed environments for the test (`["local", "staging"]`) |
 | `notes` | string | Anything a future reader needs to know |
 
-### The `expected` object
+### Type-specific fields
 
-This is what the runner checks. You can use any combination of these:
+#### HTTP test
+
+Required derived fields:
+- `type: "http"`
+- `url`
+- `method`
+- `expected.statusCode`
+
+Optional derived fields:
+- `headers`
+- `payload`
+- `expected.bodyContains`
+- `expected.jsonPath`
+
+#### Bash test
+
+Required derived fields:
+- `type: "bash"`
+- `script`
+
+Optional derived fields:
+- `expected_exit_code` default `0`
+- `expected_output`
+- `timeout_seconds` default `30`
+
+#### Manual test
+
+Required derived fields:
+- none
+
+Optional derived fields:
+- `type: "manual"`
+- `notes`
+
+### HTTP `expected` object
 
 ```json
 "expected": {
   "statusCode": 200,
   "bodyContains": ["access_token", "refresh_token"],
-  "jwtClaims": {
-    "role": "authenticated",
-    "exp_offset_min": 3540
+  "jsonPath": {
+    "data.user.role": "authenticated"
   },
-  "cookieSet": "sb-refresh-token"
 }
 ```
 
@@ -130,8 +156,7 @@ This is what the runner checks. You can use any combination of these:
 |-----|---------|
 | `statusCode` | Expected HTTP status code |
 | `bodyContains` | Array of strings that must appear in the response body |
-| `jwtClaims` | Fields that must exist in the decoded JWT payload |
-| `cookieSet` | Name of a cookie that must be set in the response |
+| `jsonPath` | Object of dotted JSON paths and expected values |
 
 ---
 
@@ -143,16 +168,13 @@ Here is a real test document from start to finish:
 {
   "id": "AUTH-003",
   "title": "Login with valid credentials returns access token",
-  "description": "POST to GoTrue token endpoint with correct email and password. The response must contain access_token and refresh_token. The access_token must be a valid JWT with role=authenticated and exp = now + 3600 seconds.",
   "domain": "auth",
-  "type": "integration",
-  "layer": "backend",
   "priority": "P1",
+  "status": "draft",
+  "type": "http",
+  "layer": "integration",
   "tags": ["gotrue", "jwt", "login", "password"],
-  "service": "auth-service",
-  "component": "GoTrue",
-  "environment": ["local", "staging"],
-  "dependencies": ["postgres"],
+  "environment": ["local"],
   "preconditions": [
     "GoTrue running on :9999",
     "Test user exists: test@prismatica.dev / TestPassword123!"
@@ -170,11 +192,7 @@ Here is a real test document from start to finish:
     "email": "test@prismatica.dev",
     "password": "TestPassword123!"
   },
-  "timeout_ms": 5000,
-  "retries": 1,
-  "author": "dlesieur",
   "phase": "phase-1",
-  "status": "draft",
   "notes": "Set status to active once the test user seed is confirmed in the local bootstrap script."
 }
 ```

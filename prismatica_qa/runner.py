@@ -4,6 +4,7 @@ import base64
 import json
 import math
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -15,6 +16,12 @@ from uuid import uuid4
 
 from .catalog import BODY_METHODS
 from .env import Settings
+from .models import detect_test_type
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Confirm
+
+console = Console()
 
 
 @dataclass(frozen=True)
@@ -137,10 +144,28 @@ def evaluate_expected(test: dict[str, Any], status_code: int, body_text: str, he
                     if payload.get(key) != expected_value:
                         errors.append(f"jwt claim mismatch for {key}: expected {expected_value}, got {payload.get(key)}")
 
+    json_path_assertions = expected.get("jsonPath")
+    if json_path_assertions:
+        try:
+            body_json = json.loads(body_text)
+        except json.JSONDecodeError:
+            errors.append("expected jsonPath assertions but response body is not valid JSON")
+        else:
+            for path, expected_value in json_path_assertions.items():
+                current = body_json
+                for key in path.split("."):
+                    if isinstance(current, dict) and key in current:
+                        current = current[key]
+                    else:
+                        current = None
+                        break
+                if current != expected_value:
+                    errors.append(f"jsonPath mismatch for {path}: expected {expected_value}, got {current}")
+
     return errors
 
 
-def execute_test(test: dict[str, Any], settings: Settings, previous: dict[str, Any] | None) -> RunOutcome:
+def execute_http_test(test: dict[str, Any], settings: Settings, previous: dict[str, Any] | None) -> RunOutcome:
     start = time.perf_counter()
 
     try:
@@ -169,7 +194,10 @@ def execute_test(test: dict[str, Any], settings: Settings, previous: dict[str, A
         headers=headers,
         data=data,
     )
-    timeout_seconds = max(1, int(test.get("timeout_ms", 5000)) // 1000)
+    timeout_seconds = test.get("timeout_seconds")
+    if timeout_seconds is None and isinstance(test.get("timeout_ms"), int):
+        timeout_seconds = max(1, int(test["timeout_ms"] / 1000))
+    timeout_seconds = max(1, int(timeout_seconds or 5))
 
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
@@ -204,9 +232,143 @@ def execute_test(test: dict[str, Any], settings: Settings, previous: dict[str, A
         error=" | ".join(errors) if errors else None,
         response_snapshot={
             "url": url,
+            "status_code": status_code,
+            "headers": response_headers,
             "body_preview": body_text[:1000],
         },
         comparison=comparison_label(previous, passed),
+    )
+
+
+def execute_script_test(test: dict[str, Any], previous: dict[str, Any] | None) -> RunOutcome:
+    start = time.perf_counter()
+    command = str(test.get("script", "")).strip()
+    if not command:
+        return RunOutcome(
+            test=test,
+            passed=False,
+            http_status=None,
+            duration_ms=0,
+            error="missing script command",
+            response_snapshot={},
+            comparison=comparison_label(previous, False),
+        )
+
+    timeout_seconds = max(1, int(test.get("timeout_seconds", 30)))
+
+    try:
+        result = subprocess.run(
+            ["/bin/bash", "-lc", command],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            cwd=test.get("working_dir"),
+        )
+    except subprocess.TimeoutExpired:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        return RunOutcome(
+            test=test,
+            passed=False,
+            http_status=None,
+            duration_ms=duration_ms,
+            error=f"script timed out after {timeout_seconds}s",
+            response_snapshot={"command": command},
+            comparison=comparison_label(previous, False),
+        )
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    errors: list[str] = []
+    expected_exit = int(test.get("expected_exit_code", 0))
+    if result.returncode != expected_exit:
+        errors.append(f"expected exit code {expected_exit}, got {result.returncode}")
+
+    output = f"{result.stdout}\n{result.stderr}"
+    expected_output = test.get("expected_output")
+    if expected_output and expected_output not in output:
+        errors.append(f'output missing: "{expected_output}"')
+
+    passed = len(errors) == 0
+    return RunOutcome(
+        test=test,
+        passed=passed,
+        http_status=None,
+        duration_ms=duration_ms,
+        error=" | ".join(errors) if errors else None,
+        response_snapshot={
+            "command": command,
+            "stdout_preview": result.stdout[:1000],
+            "stderr_preview": result.stderr[:1000],
+            "output_preview": output[:1000],
+            "exit_code": result.returncode,
+        },
+        comparison=comparison_label(previous, passed),
+    )
+
+
+def execute_manual_test(test: dict[str, Any], previous: dict[str, Any] | None) -> RunOutcome:
+    start = time.perf_counter()
+
+    if not sys.stdin.isatty():
+        return RunOutcome(
+            test=test,
+            passed=False,
+            http_status=None,
+            duration_ms=0,
+            error="manual tests require interactive confirmation",
+            response_snapshot={},
+            comparison=comparison_label(previous, False),
+        )
+
+    details = [test["title"]]
+    if test.get("description"):
+        details.append("")
+        details.append(str(test["description"]))
+    if test.get("preconditions"):
+        details.append("")
+        details.append("Preconditions:")
+        details.extend(f"- {item}" for item in test["preconditions"])
+    if test.get("notes"):
+        details.append("")
+        details.append(f"Notes: {test['notes']}")
+
+    console.print(
+        Panel.fit(
+            "\n".join(details),
+            title=f"Manual Test {test['id']}",
+            border_style="cyan",
+        )
+    )
+    passed = Confirm.ask("Did this manual test pass?", default=False)
+    duration_ms = int((time.perf_counter() - start) * 1000)
+
+    return RunOutcome(
+        test=test,
+        passed=passed,
+        http_status=None,
+        duration_ms=duration_ms,
+        error=None if passed else "manual test marked as failed by operator",
+        response_snapshot={"manual_confirmation": passed},
+        comparison=comparison_label(previous, passed),
+    )
+
+
+def execute_test(test: dict[str, Any], settings: Settings, previous: dict[str, Any] | None) -> RunOutcome:
+    test_type = detect_test_type(test)
+    if test_type == "http":
+        return execute_http_test(test, settings, previous)
+    if test_type == "bash":
+        return execute_script_test(test, previous)
+    if test_type == "manual":
+        return execute_manual_test(test, previous)
+
+    return RunOutcome(
+        test=test,
+        passed=False,
+        http_status=None,
+        duration_ms=0,
+        error=f"unsupported test type: {test_type}",
+        response_snapshot={},
+        comparison=comparison_label(previous, False),
     )
 
 
@@ -223,15 +385,20 @@ def run_tests(
 
     max_workers = max(1, workers or min(8, max(1, len(tests))))
     outcomes: list[RunOutcome] = []
+    automated_tests = [test for test in tests if detect_test_type(test) != "manual"]
+    manual_tests = [test for test in tests if detect_test_type(test) == "manual"]
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_map = {
             executor.submit(execute_test, test, settings, previous_results.get(test["id"])): test
-            for test in tests
+            for test in automated_tests
         }
 
         for future in as_completed(future_map):
             outcomes.append(future.result())
+
+    for test in manual_tests:
+        outcomes.append(execute_test(test, settings, previous_results.get(test["id"])))
 
     outcomes.sort(key=lambda item: item.test["id"])
     return run_id, outcomes

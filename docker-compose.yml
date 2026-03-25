@@ -1,8 +1,8 @@
-version: '3.8'
-
+name: prismatica-qa
 services:
   mongo:
     image: mongo:7
+    container_name: prismatica-qa-mongo
     ports:
       - "27017:27017"
     volumes:
@@ -12,6 +12,34 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  qa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: prismatica-qa-cli:local
+    working_dir: /workspace
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    env_file:
+      - .env
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      TEST_ENV: "${TEST_ENV:-local}"
+      MONGO_URI: "${MONGO_URI_DOCKER:-mongodb://mongo:27017/test_hub}"
+      KONG_URL: "${KONG_URL_DOCKER:-http://host.docker.internal:8000}"
+      GOTRUE_URL: "${GOTRUE_URL_DOCKER:-http://host.docker.internal:9999}"
+      POSTGREST_URL: "${POSTGREST_URL_DOCKER:-http://host.docker.internal:3000}"
+      REALTIME_URL: "${REALTIME_URL_DOCKER:-http://host.docker.internal:4001}"
+      MINIO_URL: "${MINIO_URL_DOCKER:-http://host.docker.internal:9000}"
+      FRONTEND_URL: "${FRONTEND_URL_DOCKER:-http://host.docker.internal:5173}"
+    volumes:
+      - .:/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stdin_open: true
+    tty: true
+    init: true
 
 volumes:
   mongodata:
