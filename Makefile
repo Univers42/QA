@@ -13,7 +13,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -ec
 
-.PHONY: help all install api test list clean preflight check-python check-env venv
+.PHONY: help all install api test list clean preflight check-python check-env venv hooks
 
 .DEFAULT_GOAL := all
 
