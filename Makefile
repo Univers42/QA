@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    Makefile                                           :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: dlesieur <dlesieur@student.42madrid.com    +#+  +:+       +#+         #
+#    By: vjan-nie <vjan-nie@student.42madrid.com    +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/03/24 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/03/24 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/03/25 23:03:30 by vjan-nie         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -128,7 +128,7 @@ install: venv check-env  ## 📦 Install all Python dependencies
 #  ⚡ DEFAULT
 # ============================================
 
-all: banner preflight install  ## 🚀 Full setup (default)
+all: banner preflight install hooks  ## 🚀 Full setup (default)
 	@echo ""
 	@echo -e "  $(GREEN)$(BOLD)Setup complete!$(NC) Next steps:"
 	@echo -e "  $(DIM)  1. Edit .env with your Atlas password$(NC)"
@@ -183,6 +183,13 @@ dashboard:  ## 🌐 Start React dashboard (port 5173)
 	fi
 	@$(call step,$(BLUE)ℹ,Starting dashboard on :5173...)
 	@cd dashboard && npm run dev
+
+# ============================================
+#  🔒 GIT HOOKS
+# ============================================
+
+hooks:  ## 🔒 Install git hooks (conventional commits, branch protection)
+	@bash hooks/install.sh
 
 # ============================================
 #  🧹 CLEANUP

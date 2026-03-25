@@ -1,0 +1,111 @@
+#!/bin/bash
+# ── Prismatica QA · Commit-msg Hook ────────────────────────
+# Validates commit messages against Conventional Commits.
+# Same format as transcendence for cross-repo consistency.
+# Bypass: SKIP_COMMIT_MSG=1 git commit ...
+
+set -e
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${HOOK_DIR}/log_hook.sh"
+
+# ── Skip conditions ────────────────────────────────────────
+
+if [ "${SKIP_COMMIT_MSG}" = "1" ]; then
+    log_warn "Commit-msg hook skipped (SKIP_COMMIT_MSG=1)"
+    exit 0
+fi
+
+MSG_FILE="$1"
+MSG=$(head -1 "${MSG_FILE}")
+
+log_broadcast "Commit-msg · Prismatica QA"
+log_debug "Message: ${MSG}"
+
+ERRORS=0
+
+# ── Allowed types (same as transcendence) ─────────────────
+
+TYPES="feat|fix|docs|refactor|test|chore|style|perf|ci|build|revert"
+
+# ── Rule 1: Format — type(scope): Description ────────────
+
+if ! echo "${MSG}" | grep -qE "^(${TYPES})\([a-zA-Z0-9._-]+\): .+$"; then
+    log_error "Invalid format. Expected: type(scope): Description"
+    log_example "Allowed types: feat, fix, docs, refactor, test, chore, style, perf, ci, build, revert"
+    log_example "Example: feat(api): Add test execution endpoint"
+    ERRORS=$((ERRORS + 1))
+else
+    log_success "Format OK"
+fi
+
+# ── Rule 2: Description length (25–170 chars) ────────────
+
+# Extract description (everything after "type(scope): ")
+DESC=$(echo "${MSG}" | sed -E "s/^(${TYPES})\([^)]+\): //")
+
+DESC_LEN=${#DESC}
+if [ ${DESC_LEN} -lt 25 ]; then
+    log_error "Description too short (${DESC_LEN} chars, minimum 25)"
+    log_example "Be specific: what changed and why"
+    ERRORS=$((ERRORS + 1))
+elif [ ${DESC_LEN} -gt 170 ]; then
+    log_error "Description too long (${DESC_LEN} chars, maximum 170)"
+    log_example "Move details to the commit body (blank line after header)"
+    ERRORS=$((ERRORS + 1))
+else
+    log_success "Length OK (${DESC_LEN} chars)"
+fi
+
+# ── Rule 3: First letter of description must be uppercase ─
+
+if echo "${DESC}" | grep -qE "^[a-z]"; then
+    log_error "Description must start with an uppercase letter"
+    log_example "\"add token\" → \"Add token\""
+    ERRORS=$((ERRORS + 1))
+else
+    log_success "Capitalisation OK"
+fi
+
+# ── Rule 4: No trailing period ────────────────────────────
+
+if echo "${MSG}" | grep -qE '\.$'; then
+    log_error "Message must not end with a period"
+    ERRORS=$((ERRORS + 1))
+else
+    log_success "No trailing period"
+fi
+
+# ── Rule 5: No forbidden words ────────────────────────────
+
+FORBIDDEN="WIP|squash!|fixup!|debug|temporary|TODO|FIXME|HACK"
+if echo "${MSG}" | grep -qiE "(${FORBIDDEN})"; then
+    FOUND=$(echo "${MSG}" | grep -oiE "(${FORBIDDEN})" | head -1)
+    log_error "Forbidden word in message: \"${FOUND}\""
+    log_example "Clean up before committing — use proper descriptions"
+    ERRORS=$((ERRORS + 1))
+else
+    log_success "No forbidden words"
+fi
+
+# ── Summary ───────────────────────────────────────────────
+
+echo ""
+if [ ${ERRORS} -gt 0 ]; then
+    log_error "${ERRORS} error(s) — commit rejected"
+    echo ""
+    log_info "Examples of valid messages:"
+    log_example "feat(api): Add test execution endpoint with WebSocket support"
+    log_example "fix(runner): Resolve timeout handling in HTTP executor"
+    log_example "test(auth): Add AUTH-004 token refresh integration test"
+    log_example "docs(readme): Update architecture diagram for v3 migration"
+    log_example "chore(deps): Upgrade FastAPI to 0.110.0"
+    echo ""
+    log_info "Bypass: SKIP_COMMIT_MSG=1 git commit ..."
+    echo ""
+    exit 1
+fi
+
+log_success "Commit message validated"
+echo ""
+exit 0

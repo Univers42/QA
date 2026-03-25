@@ -1,0 +1,137 @@
+#!/bin/bash
+# ── Prismatica QA · Pre-push Hook ──────────────────────────
+# Soft protection on main (Y/n confirmation).
+# Validates commit messages of new commits being pushed.
+# Bypass: SKIP_PRE_PUSH=1 git push ...
+
+set -e
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${HOOK_DIR}/log_hook.sh"
+
+# ── Skip conditions ────────────────────────────────────────
+
+if [ "${SKIP_PRE_PUSH}" = "1" ]; then
+    log_warn "Pre-push hook skipped (SKIP_PRE_PUSH=1)"
+    exit 0
+fi
+
+REMOTE="$1"
+URL="$2"
+
+log_broadcast "Pre-push · Prismatica QA"
+
+# ── Read push info from stdin ─────────────────────────────
+
+ERRORS=0
+BRANCH=""
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Extract branch name
+    BRANCH=$(echo "${local_ref}" | sed 's|refs/heads/||')
+
+    log_debug "Pushing ${BRANCH} → ${REMOTE} (${local_sha:0:8}..${remote_sha:0:8})"
+
+    # ── Protection: main branch ───────────────────────────
+
+    if [ "${BRANCH}" = "main" ] || [ "${BRANCH}" = "master" ]; then
+        if [ "${GIT_CONFIRM_PUSH}" = "yes" ]; then
+            log_info "Auto-confirmed push to ${BRANCH} (GIT_CONFIRM_PUSH=yes)"
+        elif [ -t 0 ] 2>/dev/null; then
+            # Interactive terminal — ask for confirmation
+            echo ""
+            echo -e "  ${_Y}⚠${_N}  You are about to push directly to ${_BD}${BRANCH}${_N}"
+            echo -e "  ${_D}Consider using a feature branch and merging via PR instead.${_N}"
+            echo ""
+            printf "  Continue? [Y/n]: "
+            # Re-open terminal for input (stdin is consumed by git)
+            exec < /dev/tty
+            read -r answer
+            case "${answer}" in
+                [Nn]*)
+                    log_error "Push to ${BRANCH} aborted by user"
+                    echo ""
+                    exit 1
+                    ;;
+                *)
+                    log_info "Push to ${BRANCH} confirmed"
+                    ;;
+            esac
+        else
+            # Non-interactive (CI) without GIT_CONFIRM_PUSH — block
+            log_error "Push to ${BRANCH} blocked in non-interactive mode"
+            log_example "Set GIT_CONFIRM_PUSH=yes for CI pipelines"
+            echo ""
+            exit 1
+        fi
+    fi
+
+    # ── Validate commit messages of new commits ───────────
+
+    if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ]; then
+        # New branch — validate all commits
+        COMMITS=$(git rev-list "${local_sha}" --not --remotes 2>/dev/null || echo "")
+    else
+        # Existing branch — only new commits
+        COMMITS=$(git rev-list "${remote_sha}..${local_sha}" 2>/dev/null || echo "")
+    fi
+
+    if [ -z "${COMMITS}" ]; then
+        log_debug "No new commits to validate"
+        continue
+    fi
+
+    TYPES="feat|fix|docs|refactor|test|chore|style|perf|ci|build|revert"
+    BAD_COMMITS=0
+    AUTHOR_EMAIL=$(git config user.email 2>/dev/null || echo "")
+
+    for commit in ${COMMITS}; do
+        # Only validate commits by the local author
+        COMMIT_EMAIL=$(git log -1 --format='%ae' "${commit}" 2>/dev/null || echo "")
+        if [ -n "${AUTHOR_EMAIL}" ] && [ "${COMMIT_EMAIL}" != "${AUTHOR_EMAIL}" ]; then
+            log_debug "Skipping commit by ${COMMIT_EMAIL} (not local author)"
+            continue
+        fi
+
+        MSG=$(git log -1 --format='%s' "${commit}")
+
+        if ! echo "${MSG}" | grep -qE "^(${TYPES})\([a-zA-Z0-9._-]+\): [A-Z].{24,169}[^.]$"; then
+            log_warn "Non-compliant commit: ${commit:0:8} — ${MSG}"
+            BAD_COMMITS=$((BAD_COMMITS + 1))
+        fi
+    done
+
+    if [ ${BAD_COMMITS} -gt 0 ]; then
+        echo ""
+        log_warn "${BAD_COMMITS} commit(s) with non-compliant messages on ${BRANCH}"
+
+        if [ "${GIT_ALLOW_BAD_COMMIT_MSG}" = "yes" ]; then
+            log_info "Auto-allowed (GIT_ALLOW_BAD_COMMIT_MSG=yes)"
+        elif [ -t 0 ] 2>/dev/null; then
+            printf "  Continue push anyway? [Y/n]: "
+            exec < /dev/tty
+            read -r answer
+            case "${answer}" in
+                [Nn]*)
+                    log_error "Push aborted — fix commit messages with: git commit --amend"
+                    echo ""
+                    exit 1
+                    ;;
+                *)
+                    log_info "Push continued with warnings"
+                    ;;
+            esac
+        else
+            log_error "Push blocked — non-compliant commits in non-interactive mode"
+            log_example "Set GIT_ALLOW_BAD_COMMIT_MSG=yes to override"
+            echo ""
+            exit 1
+        fi
+    fi
+
+done
+
+echo ""
+log_success "Pre-push checks passed"
+echo ""
+exit 0

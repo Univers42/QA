@@ -1,0 +1,147 @@
+#!/bin/bash
+# ── Prismatica QA · Pre-commit Hook ────────────────────────
+# Validates staged files BEFORE creating a commit.
+# Bypass: SKIP_PRE_COMMIT=1 git commit ...
+
+set -e
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${HOOK_DIR}/log_hook.sh"
+
+# ── Skip conditions ────────────────────────────────────────
+
+if [ "${SKIP_PRE_COMMIT}" = "1" ]; then
+    log_warn "Pre-commit hook skipped (SKIP_PRE_COMMIT=1)"
+    exit 0
+fi
+
+# Skip during merge/rebase (automated commits)
+if [ -f .git/MERGE_HEAD ] || [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+    exit 0
+fi
+
+log_broadcast "Pre-commit · Prismatica QA"
+
+ERRORS=0
+WARNINGS=0
+
+# Get list of staged files (excluding deleted)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=d 2>/dev/null)
+
+if [ -z "${STAGED_FILES}" ]; then
+    log_info "No staged files to check"
+    exit 0
+fi
+
+# ── Check 1: Merge conflict markers ───────────────────────
+
+log_debug "Checking for merge conflict markers..."
+for file in ${STAGED_FILES}; do
+    if grep -qnE '^(<<<<<<<|=======|>>>>>>>)' "${file}" 2>/dev/null; then
+        log_error "Merge conflict marker found: ${file}"
+        ERRORS=$((ERRORS + 1))
+    fi
+done
+
+# ── Check 2: Python debug leftovers ───────────────────────
+
+log_debug "Checking for debug leftovers..."
+for file in ${STAGED_FILES}; do
+    # Only check Python files, skip tests and configs
+    case "${file}" in
+        *.py)
+            case "${file}" in
+                *test_*|*_test.py|*conftest*) continue ;;
+            esac
+            ;;
+        *) continue ;;
+    esac
+
+    # breakpoint() and pdb
+    if grep -qnE '(breakpoint\(\)|import pdb|pdb\.set_trace\(\))' "${file}" 2>/dev/null; then
+        log_warn "Debug statement found: ${file}"
+        grep -nE '(breakpoint\(\)|import pdb|pdb\.set_trace\(\))' "${file}" | while read -r line; do
+            log_example "  ${line}"
+        done
+        WARNINGS=$((WARNINGS + 1))
+    fi
+
+    # Bare print() statements (likely debug, not intentional output)
+    # Skip files that are clearly CLI/scripts (they need print)
+    case "${file}" in
+        cli/*|scripts/*|runner/ci.py) continue ;;
+    esac
+    if grep -qnE '^\s*print\(' "${file}" 2>/dev/null; then
+        log_warn "print() found (use logging or Rich instead?): ${file}"
+        WARNINGS=$((WARNINGS + 1))
+    fi
+done
+
+# ── Check 3: Sensitive files ──────────────────────────────
+
+log_debug "Checking for sensitive files..."
+for file in ${STAGED_FILES}; do
+    case "${file}" in
+        .env|.env.*|*.pem|*.key|*.p12|*.pfx)
+            log_error "Sensitive file staged: ${file} — add it to .gitignore"
+            ERRORS=$((ERRORS + 1))
+            ;;
+    esac
+done
+
+# ── Check 4: Large files (> 500 KB) ──────────────────────
+
+log_debug "Checking file sizes..."
+for file in ${STAGED_FILES}; do
+    if [ -f "${file}" ]; then
+        size=$(wc -c < "${file}" 2>/dev/null || echo 0)
+        if [ "${size}" -gt 512000 ]; then
+            size_kb=$((size / 1024))
+            log_error "File too large (${size_kb} KB > 500 KB): ${file}"
+            log_example "Consider .gitignore or Git LFS"
+            ERRORS=$((ERRORS + 1))
+        fi
+    fi
+done
+
+# ── Check 5: __pycache__ directories ─────────────────────
+
+log_debug "Checking for __pycache__..."
+for file in ${STAGED_FILES}; do
+    case "${file}" in
+        *__pycache__*|*.pyc)
+            log_error "Cache file staged: ${file} — should be in .gitignore"
+            ERRORS=$((ERRORS + 1))
+            ;;
+    esac
+done
+
+# ── Check 6: .venv directory ─────────────────────────────
+
+for file in ${STAGED_FILES}; do
+    case "${file}" in
+        .venv/*)
+            log_error "Virtual environment file staged: ${file} — should be in .gitignore"
+            ERRORS=$((ERRORS + 1))
+            ;;
+    esac
+done
+
+# ── Summary ───────────────────────────────────────────────
+
+echo ""
+if [ ${ERRORS} -gt 0 ]; then
+    log_error "${ERRORS} error(s) found — commit blocked"
+    log_example "Fix the errors above or bypass with: SKIP_PRE_COMMIT=1 git commit ..."
+    echo ""
+    exit 1
+fi
+
+if [ ${WARNINGS} -gt 0 ]; then
+    log_warn "${WARNINGS} warning(s) — commit allowed"
+else
+    log_success "All checks passed"
+fi
+
+echo ""
+exit 0
