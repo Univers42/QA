@@ -1,10 +1,9 @@
 {
   "id": "AUTH-001",
   "title": "Login with valid credentials returns access token",
-  "description": "POST to GoTrue token endpoint with correct email and password. Response must contain access_token.",
+  "description": "POST to GoTrue token endpoint with correct email and password. Response must contain access_token and refresh_token.",
   "domain": "auth",
-  "type": "integration",
-  "layer": "backend",
+  "type": "http",
   "priority": "P0",
   "tags": ["gotrue", "jwt", "login"],
   "service": "auth-service",

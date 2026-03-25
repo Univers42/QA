@@ -1,10 +1,9 @@
 {
   "id": "AUTH-002",
   "title": "Login with invalid credentials returns 400",
-  "description": "POST to GoTrue with wrong password. Must return 4xx — not 200.",
+  "description": "POST to GoTrue with wrong password. Must return 4xx, not 200.",
   "domain": "auth",
-  "type": "integration",
-  "layer": "backend",
+  "type": "http",
   "priority": "P0",
   "tags": ["gotrue", "login", "negative"],
   "service": "auth-service",
@@ -27,5 +26,5 @@
   "author": "vjan-nie",
   "phase": "phase-1",
   "status": "skipped",
-  "notes": "GoTrue returns 500 Database error querying schema — auth migrations incomplete. Reactivate once bootstrap script seeds the auth schema correctly."
+  "notes": "GoTrue returns 500 Database error — auth migrations incomplete. Reactivate once bootstrap script seeds the auth schema correctly."
 }

@@ -1,0 +1,23 @@
+{
+  "id": "API-002",
+  "title": "QA API /tests endpoint returns test definitions",
+  "description": "GET /tests must return a JSON response containing a 'tests' array and a 'total' count. Verifies the API can read from Atlas.",
+  "domain": "api",
+  "type": "http",
+  "priority": "P0",
+  "tags": ["qa-api", "fastapi", "crud"],
+  "service": "qa-api",
+  "environment": ["local"],
+  "dependencies": ["mongodb-atlas"],
+  "preconditions": ["make api running", "At least one test exists in Atlas"],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["tests", "total"]
+  },
+  "url": "http://localhost:8000/tests",
+  "method": "GET",
+  "author": "dlesieur",
+  "phase": "phase-2",
+  "status": "active",
+  "notes": "Tests our own QA infrastructure. Requires make api to be running and Atlas populated."
+}

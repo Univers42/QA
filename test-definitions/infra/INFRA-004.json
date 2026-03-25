@@ -3,14 +3,13 @@
   "title": "PostgREST dynamic API responds on port 3000",
   "description": "Verifies PostgREST is reachable and connected to PostgreSQL.",
   "domain": "infra",
-  "type": "smoke",
-  "layer": "infra",
+  "type": "http",
   "priority": "P0",
   "tags": ["postgrest", "api", "smoke"],
   "service": "dynamic-api",
   "environment": ["local"],
   "dependencies": ["postgres"],
-  "preconditions": ["make compose-up executed"],
+  "preconditions": ["mini-baas-infra services running"],
   "expected": {
     "statusCode": 200
   },

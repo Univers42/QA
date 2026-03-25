@@ -1,25 +1,24 @@
 {
   "id": "INFRA-001",
-  "title": "MongoDB Test Hub responds to ping",
-  "description": "Verifies if the Test Hub's MongoDB instance id operative ande responds to the command adminCommand ping. The primary infrastructure smoke test.",
+  "title": "MongoDB Atlas responds to ping",
+  "description": "Verifies that the QA Hub's MongoDB Atlas instance is reachable and responds to the admin ping command. This is the primary infrastructure smoke test — if Atlas is down, nothing works.",
   "domain": "infra",
-  "type": "smoke",
-  "layer": "infra",
+  "type": "bash",
   "priority": "P0",
-  "tags": ["mongodb", "smoke", "infrastructure"],
-  "service": "mongo",
-  "component": "MongoDB",
-  "environment": ["local"],
+  "tags": ["mongodb", "atlas", "smoke", "infrastructure"],
+  "service": "mongodb-atlas",
+  "environment": ["local", "ci"],
   "dependencies": [],
-  "preconditions": ["Docker is running", "make up previously executed"],
-  "expected": {
-    "statusCode": 200,
-    "bodyContains": ["ok"]
-  },
-  "url": "mongodb://localhost:27017",
-  "method": "GET",
+  "preconditions": [
+    "MONGO_URI_ATLAS is set in .env",
+    "Atlas cluster is reachable from current network"
+  ],
+  "script": "cd /home/dlesieur/QA && .venv/bin/python -c \"from core.db import get_db; get_db().command('ping'); print('ok')\"",
+  "expected_exit_code": 0,
+  "expected_output": "ok",
+  "timeout_seconds": 10,
   "author": "vjan-nie",
   "phase": "phase-0",
-  "status": "skipped",
-  "notes": "MongoDB does not speak HTTP. This test cannot be executed by the HTTP runner. Requires a dedicated MongoDB ping script."
+  "status": "active",
+  "notes": "Rewritten from HTTP to bash in Roadmap 4. Atlas replaced local Docker MongoDB as the sole operational backend."
 }

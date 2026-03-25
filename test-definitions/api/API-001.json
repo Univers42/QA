@@ -1,0 +1,23 @@
+{
+  "id": "API-001",
+  "title": "QA API health endpoint responds on port 8000",
+  "description": "GET to the root of the Prismatica QA API. Verifies the FastAPI server is running and responsive.",
+  "domain": "api",
+  "type": "http",
+  "priority": "P0",
+  "tags": ["qa-api", "fastapi", "smoke"],
+  "service": "qa-api",
+  "environment": ["local"],
+  "dependencies": [],
+  "preconditions": ["make api running"],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["prismatica-qa-api"]
+  },
+  "url": "http://localhost:8000/",
+  "method": "GET",
+  "author": "dlesieur",
+  "phase": "phase-2",
+  "status": "active",
+  "notes": "Tests our own QA infrastructure. Requires make api to be running."
+}

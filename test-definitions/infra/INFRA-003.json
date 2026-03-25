@@ -3,14 +3,13 @@
   "title": "GoTrue auth service responds on port 9999",
   "description": "Verifies GoTrue health endpoint is reachable. Required before any auth test can run.",
   "domain": "infra",
-  "type": "smoke",
-  "layer": "infra",
+  "type": "http",
   "priority": "P0",
   "tags": ["gotrue", "auth", "smoke"],
   "service": "auth-service",
   "environment": ["local"],
   "dependencies": ["postgres"],
-  "preconditions": ["make compose-up executed", "auth schema created in PostgreSQL"],
+  "preconditions": ["mini-baas-infra services running", "auth schema created in PostgreSQL"],
   "expected": {
     "statusCode": 200,
     "bodyContains": ["version"]

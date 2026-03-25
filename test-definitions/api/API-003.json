@@ -1,0 +1,23 @@
+{
+  "id": "API-003",
+  "title": "QA API /results/summary returns domain aggregation",
+  "description": "GET /results/summary must return a JSON response with a 'domains' array aggregating test counts per domain.",
+  "domain": "api",
+  "type": "http",
+  "priority": "P1",
+  "tags": ["qa-api", "fastapi", "results"],
+  "service": "qa-api",
+  "environment": ["local"],
+  "dependencies": ["mongodb-atlas"],
+  "preconditions": ["make api running"],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["domains"]
+  },
+  "url": "http://localhost:8000/results/summary",
+  "method": "GET",
+  "author": "dlesieur",
+  "phase": "phase-2",
+  "status": "active",
+  "notes": "Tests our own QA infrastructure."
+}
