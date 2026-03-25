@@ -1,22 +1,55 @@
 {
-  "id": "DOMAIN-NNN",
-  "title": "Short description: what should happen",
-  "description": "Detailed explanation of the expected behaviour.",
-  "domain": "auth|schema|api|realtime|storage|gateway|ui|infra",
-  "type": "unit|integration|e2e|smoke|contract",
-  "layer": "backend|frontend|infra|full-stack",
-  "priority": "P0|P1|P2|P3",
-  "tags": ["tag1", "tag2"],
-  "service": "service-name",
-  "preconditions": ["..."],
-  "expected": {
-    "statusCode": 200,
-    "bodyContains": ["expected_field"]
+  "_comment": "Copy this file to test-definitions/{domain}/{ID}.json and fill in the fields. Delete this _comment field and any sections you don't need.",
+  "id": "PREFIX-NNN",
+  "title": "Short description: what should happen (min 5 characters)",
+  "domain": "auth | gateway | schema | api | realtime | storage | ui | infra",
+  "priority": "P0 | P1 | P2 | P3",
+  "status": "draft",
+  "_comment_type": "Pick ONE of the three type blocks below and delete the other two.",
+  "_type_http": {
+    "type": "http",
+    "url": "http://localhost:PORT/path",
+    "method": "GET | POST | PUT | PATCH | DELETE",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "payload": {},
+    "expected": {
+      "statusCode": 200,
+      "bodyContains": [
+        "expected_string"
+      ]
+    },
+    "timeout_ms": 5000
   },
-  "url": "http://localhost:8000/route",
-  "method": "GET|POST|PATCH|DELETE",
-  "script": "tests/domain/name.test.ts",
+  "_type_bash": {
+    "type": "bash",
+    "script": "command_to_run --with-args",
+    "expected_exit_code": 0,
+    "expected_output": "string that must appear in stdout",
+    "timeout_seconds": 30
+  },
+  "_type_manual": {
+    "type": "manual",
+    "notes": "What a human should verify"
+  },
+  "_comment_optional": "All fields below are optional. Include what is relevant.",
+  "description": "Detailed explanation of what this test verifies and why it matters.",
+  "tags": [
+    "tag1",
+    "tag2"
+  ],
+  "service": "service-name",
+  "environment": [
+    "local"
+  ],
+  "dependencies": [
+    "postgres"
+  ],
+  "preconditions": [
+    "Service X running on :PORT"
+  ],
   "author": "your_42_login",
   "phase": "phase-N",
-  "status": "draft"
+  "notes": "Anything a future reader needs to know."
 }
