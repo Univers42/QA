@@ -32,40 +32,6 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     log_debug "Pushing ${BRANCH} → ${REMOTE} (${local_sha:0:8}..${remote_sha:0:8})"
 
-    # ── Protection: main branch ───────────────────────────
-
-    if [ "${BRANCH}" = "main" ] || [ "${BRANCH}" = "master" ]; then
-        if [ "${GIT_CONFIRM_PUSH}" = "yes" ]; then
-            log_info "Auto-confirmed push to ${BRANCH} (GIT_CONFIRM_PUSH=yes)"
-        elif [ -t 0 ] 2>/dev/null; then
-            # Interactive terminal — ask for confirmation
-            echo ""
-            echo -e "  ${_Y}⚠${_N}  You are about to push directly to ${_BD}${BRANCH}${_N}"
-            echo -e "  ${_D}Consider using a feature branch and merging via PR instead.${_N}"
-            echo ""
-            printf "  Continue? [Y/n]: "
-            # Re-open terminal for input (stdin is consumed by git)
-            exec < /dev/tty
-            read -r answer
-            case "${answer}" in
-                [Nn]*)
-                    log_error "Push to ${BRANCH} aborted by user"
-                    echo ""
-                    exit 1
-                    ;;
-                *)
-                    log_info "Push to ${BRANCH} confirmed"
-                    ;;
-            esac
-        else
-            # Non-interactive (CI) without GIT_CONFIRM_PUSH — block
-            log_error "Push to ${BRANCH} blocked in non-interactive mode"
-            log_example "Set GIT_CONFIRM_PUSH=yes for CI pipelines"
-            echo ""
-            exit 1
-        fi
-    fi
-
     # ── Validate commit messages of new commits ───────────
 
     if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ]; then
