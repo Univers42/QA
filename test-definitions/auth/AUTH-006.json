@@ -1,0 +1,35 @@
+{
+  "id": "AUTH-006",
+  "title": "Login via Kong returns JWT from GoTrue",
+  "description": "POST /auth/v1/token?grant_type=password through Kong with valid credentials. GoTrue should authenticate the user and return access_token + refresh_token. This validates the login flow works end-to-end through the gateway.",
+  "domain": "auth",
+  "type": "http",
+  "priority": "P0",
+  "tags": ["kong", "gotrue", "login", "jwt", "cross-service"],
+  "service": "auth-service",
+  "environment": ["local"],
+  "dependencies": ["kong", "gotrue", "postgres"],
+  "preconditions": [
+    "Kong running on :8000",
+    "GoTrue running on :9999",
+    "Kong routes /auth/v1 to GoTrue",
+    "Test user exists: qatest@prismatica.dev / QATestPassword42!"
+  ],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": ["access_token", "refresh_token"]
+  },
+  "url": "http://localhost:8000/auth/v1/token?grant_type=password",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "payload": {
+    "email": "qatest@prismatica.dev",
+    "password": "QATestPassword42!"
+  },
+  "author": "dlesieur",
+  "phase": "phase-1",
+  "status": "draft",
+  "notes": "Requires AUTH-005 to have been run first (to create the test user). This is the precondition for the full cross-service test: login → get JWT → access /rest with JWT."
+}

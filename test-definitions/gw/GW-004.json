@@ -1,0 +1,27 @@
+{
+  "id": "GW-004",
+  "title": "PostgREST rejects request without JWT when accessed through Kong",
+  "description": "GET /rest/v1/ through Kong without any Authorization header. PostgREST should reject the request because no JWT means no authenticated role. This validates that PostgREST's own JWT validation is active and that Kong is not injecting a default auth header.",
+  "domain": "gateway",
+  "type": "http",
+  "priority": "P0",
+  "tags": ["kong", "postgrest", "jwt", "security", "negative"],
+  "service": "api-gateway",
+  "environment": ["local"],
+  "dependencies": ["kong", "postgrest", "postgres"],
+  "preconditions": [
+    "Kong running on :8000",
+    "PostgREST running on :3000",
+    "Kong routes /rest/v1 to PostgREST",
+    "PGRST_JWT_SECRET configured in PostgREST"
+  ],
+  "expected": {
+    "statusCode": 401
+  },
+  "url": "http://localhost:8000/rest/v1/",
+  "method": "GET",
+  "author": "dlesieur",
+  "phase": "phase-1",
+  "status": "draft",
+  "notes": "No Authorization header sent. If PostgREST returns 200, it means anon access is enabled or JWT validation is not configured — both are security issues to investigate. Set active once Kong + PostgREST are both running with JWT_SECRET configured."
+}
