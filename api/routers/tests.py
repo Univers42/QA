@@ -13,9 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
 
 from api.deps import get_database
-from core.schema import parse_test
 from core.git_export import export_test
-
+from core.schema import parse_test
 
 router = APIRouter()
 
@@ -66,7 +65,7 @@ async def create_test(
     try:
         test = parse_test(body)
     except Exception as e:
-        raise HTTPException(422, f"Validation error: {e}")
+        raise HTTPException(422, f"Validation error: {e}") from None
 
     # Check uniqueness
     if db["tests"].find_one({"id": test.id}):
@@ -104,7 +103,7 @@ async def update_test(
     try:
         test = parse_test(merged)
     except Exception as e:
-        raise HTTPException(422, f"Validation error: {e}")
+        raise HTTPException(422, f"Validation error: {e}") from None
 
     doc = test.model_dump(exclude_none=False)
     db["tests"].update_one({"id": test_id}, {"$set": doc})

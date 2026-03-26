@@ -11,16 +11,15 @@ Safe to run multiple times — uses upsert on the 'id' field.
 """
 
 import json
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.db import get_db, ensure_indexes, disconnect
+from core.db import disconnect, ensure_indexes, get_db
 from core.schema import parse_test
-
 
 DEFINITIONS_DIR = Path("test-definitions")
 
@@ -93,7 +92,7 @@ def migrate():
     print(f"  {'─' * 50}")
 
     if failed == 0:
-        print(f"\n  ✓  All tests migrated to Atlas successfully.")
+        print("\n  ✓  All tests migrated to Atlas successfully.")
     else:
         print(f"\n  ⚠  {failed} test(s) failed validation — fix and re-run.")
 

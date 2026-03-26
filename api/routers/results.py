@@ -11,7 +11,6 @@ from pymongo.database import Database
 
 from api.deps import get_database
 
-
 router = APIRouter()
 
 
@@ -29,12 +28,7 @@ async def list_results(
     if passed is not None:
         query["passed"] = passed
 
-    results = list(
-        db["results"]
-        .find(query, {"_id": 0})
-        .sort("executed_at", -1)
-        .limit(limit)
-    )
+    results = list(db["results"].find(query, {"_id": 0}).sort("executed_at", -1).limit(limit))
 
     return {"results": results, "total": len(results)}
 
@@ -50,13 +44,15 @@ async def results_summary(
     """
     pipeline = [
         {"$match": {"status": {"$in": ["active", "draft", "skipped"]}}},
-        {"$group": {
-            "_id": "$domain",
-            "total": {"$sum": 1},
-            "active": {"$sum": {"$cond": [{"$eq": ["$status", "active"]}, 1, 0]}},
-            "draft": {"$sum": {"$cond": [{"$eq": ["$status", "draft"]}, 1, 0]}},
-            "skipped": {"$sum": {"$cond": [{"$eq": ["$status", "skipped"]}, 1, 0]}},
-        }},
+        {
+            "$group": {
+                "_id": "$domain",
+                "total": {"$sum": 1},
+                "active": {"$sum": {"$cond": [{"$eq": ["$status", "active"]}, 1, 0]}},
+                "draft": {"$sum": {"$cond": [{"$eq": ["$status", "draft"]}, 1, 0]}},
+                "skipped": {"$sum": {"$cond": [{"$eq": ["$status", "skipped"]}, 1, 0]}},
+            }
+        },
         {"$sort": {"_id": 1}},
     ]
 

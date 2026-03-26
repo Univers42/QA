@@ -11,13 +11,13 @@ Expected output:
     ✓ Collections: [...]
 """
 
-import sys
 import os
+import sys
 
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.db import get_db, ensure_indexes, disconnect
+from core.db import disconnect, ensure_indexes, get_db
 
 
 def main():
@@ -30,7 +30,9 @@ def main():
         print("  ✓  Indexes created")
 
         collections = db.list_collection_names()
-        print(f"  ✓  Collections: {collections if collections else '(empty — ready for migration)'}")
+        print(
+            f"  ✓  Collections: {collections if collections else '(empty — ready for migration)'}"
+        )
 
     except Exception as e:
         print(f"  ✗  Connection failed: {e}")

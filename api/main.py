@@ -17,8 +17,7 @@ Interactive docs available at:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import tests, run, results
-
+from api.routers import results, run, tests
 
 app = FastAPI(
     title="Prismatica QA API",
@@ -33,8 +32,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3003",   # Alternative dashboard port
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:3003",  # Alternative dashboard port
     ],
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +41,7 @@ app.add_middleware(
 
 # Mount routers
 app.include_router(tests.router, prefix="/tests", tags=["Tests"])
-app.include_router(run.router,   prefix="/tests", tags=["Run"])
+app.include_router(run.router, prefix="/tests", tags=["Run"])
 app.include_router(results.router, prefix="/results", tags=["Results"])
 
 

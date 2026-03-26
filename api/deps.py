@@ -6,6 +6,7 @@ into any endpoint using FastAPI's Depends() mechanism.
 """
 
 from pymongo.database import Database
+
 from core.db import get_db
 
 

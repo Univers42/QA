@@ -9,17 +9,17 @@ Usage:
     python -m runner.ci --domain auth --priority P1
 """
 
-import asyncio
 import argparse
-import sys
+import asyncio
 import os
+import sys
 
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.db import get_db, disconnect
-from runner.executor import execute_http_test
+from core.db import disconnect, get_db
 from runner.bash_executor import execute_bash_test
+from runner.executor import execute_http_test
 from runner.results import persist_result
 
 
@@ -40,7 +40,7 @@ async def run_tests(domain: str | None, priority: str | None) -> list[dict]:
     tests = list(db["tests"].find(query, {"_id": 0}))
 
     if not tests:
-        print(f"  ⚠  No active tests found matching filters")
+        print("  ⚠  No active tests found matching filters")
         return []
 
     results = []
@@ -50,7 +50,12 @@ async def run_tests(domain: str | None, priority: str | None) -> list[dict]:
         if test_type == "bash":
             result = await execute_bash_test(t)
         elif test_type == "manual":
-            result = {"test_id": t["id"], "passed": None, "duration_ms": 0, "error": "manual — skipped"}
+            result = {
+                "test_id": t["id"],
+                "passed": None,
+                "duration_ms": 0,
+                "error": "manual — skipped",
+            }
         else:
             result = await execute_http_test(t)
 

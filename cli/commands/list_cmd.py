@@ -5,21 +5,19 @@ Talks directly to Atlas (not through the API) so it works
 even when the API server is not running.
 """
 
-from typing import Optional
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from core.db import get_db, disconnect
-
+from core.db import disconnect, get_db
 
 console = Console()
 
 
 def list_tests(
-    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
-    priority: Optional[str] = typer.Option(None, "--priority", "-p", help="Filter by priority"),
-    status: Optional[str] = typer.Option(None, "--status", "-s", help="Filter by status"),
+    domain: str | None = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+    priority: str | None = typer.Option(None, "--priority", "-p", help="Filter by priority"),
+    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status"),
 ):
     """List all test definitions with optional filters."""
     try:

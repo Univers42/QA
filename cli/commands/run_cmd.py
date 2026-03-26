@@ -6,16 +6,15 @@ so it works even when the API server is not running.
 """
 
 import asyncio
-from typing import Optional
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from core.db import get_db, disconnect
-from runner.executor import execute_http_test
+from core.db import disconnect, get_db
 from runner.bash_executor import execute_bash_test
+from runner.executor import execute_http_test
 from runner.results import persist_result
-
 
 console = Console()
 
@@ -46,7 +45,12 @@ async def _run(domain: str | None, priority: str | None, test_id: str | None) ->
         if test_type == "bash":
             result = await execute_bash_test(t)
         elif test_type == "manual":
-            result = {"test_id": t["id"], "passed": None, "duration_ms": 0, "error": "manual — skipped"}
+            result = {
+                "test_id": t["id"],
+                "passed": None,
+                "duration_ms": 0,
+                "error": "manual — skipped",
+            }
         else:
             result = await execute_http_test(t)
 
@@ -57,9 +61,9 @@ async def _run(domain: str | None, priority: str | None, test_id: str | None) ->
 
 
 def run_tests(
-    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
-    priority: Optional[str] = typer.Option(None, "--priority", "-p", help="Filter by priority"),
-    test_id: Optional[str] = typer.Option(None, "--id", help="Run a single test by ID"),
+    domain: str | None = typer.Option(None, "--domain", "-d", help="Filter by domain"),
+    priority: str | None = typer.Option(None, "--priority", "-p", help="Filter by priority"),
+    test_id: str | None = typer.Option(None, "--id", help="Run a single test by ID"),
 ):
     """Execute all matching active tests and display results."""
     try:

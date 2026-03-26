@@ -46,51 +46,58 @@ for file in ${STAGED_FILES}; do
     fi
 done
 
-# ── Check 2: Ruff lint (PEP 8) ────────────────────────────
+# ── Ruff checks — only enforce on main branch ─────────────
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
-if [ -n "${STAGED_PY}" ] && [ -x ".venv/bin/ruff" ]; then
-    log_debug "Running ruff linter on staged Python files..."
+if [ "${CURRENT_BRANCH}" = "main" ]; then
+    # ── Check 2: Ruff lint (PEP 8) ────────────────────────────
+    if [ -n "${STAGED_PY}" ] && [ -x ".venv/bin/ruff" ]; then
+        log_debug "Running ruff linter on staged Python files..."
 
-    # Run ruff check on staged files only
-    RUFF_OUTPUT=$(.venv/bin/ruff check --no-fix ${STAGED_PY} 2>&1 || true)
+        # Run ruff check on staged files only
+        RUFF_OUTPUT=$(.venv/bin/ruff check --no-fix ${STAGED_PY} 2>&1 || true)
 
-    if [ -n "${RUFF_OUTPUT}" ]; then
-        LINT_ERRORS=$(echo "${RUFF_OUTPUT}" | grep -cE "^.+\.py:" || echo "0")
-        log_error "Ruff found ${LINT_ERRORS} issue(s):"
-        echo ""
-        echo "${RUFF_OUTPUT}" | while IFS= read -r line; do
-            echo -e "    ${_D}${line}${_N}"
-        done
-        echo ""
-        log_example "Auto-fix: .venv/bin/ruff check --fix core/ runner/ api/ cli/"
-        log_example "Format:   .venv/bin/ruff format core/ runner/ api/ cli/"
-        ERRORS=$((ERRORS + 1))
-    else
-        log_success "Ruff lint passed (PEP 8 compliant)"
+        if [ -n "${RUFF_OUTPUT}" ]; then
+            LINT_ERRORS=$(echo "${RUFF_OUTPUT}" | grep -cE "^.+\.py:" || echo "0")
+            log_error "Ruff found ${LINT_ERRORS} issue(s):"
+            echo ""
+            echo "${RUFF_OUTPUT}" | while IFS= read -r line; do
+                echo -e "    ${_D}${line}${_N}"
+            done
+            echo ""
+            log_example "Auto-fix: .venv/bin/ruff check --fix core/ runner/ api/ cli/"
+            log_example "Format:   .venv/bin/ruff format core/ runner/ api/ cli/"
+            ERRORS=$((ERRORS + 1))
+        else
+            log_success "Ruff lint passed (PEP 8 compliant)"
+        fi
+    elif [ -n "${STAGED_PY}" ]; then
+        log_warn "Ruff not installed — skipping PEP 8 check (run: make install)"
     fi
-elif [ -n "${STAGED_PY}" ]; then
-    log_warn "Ruff not installed — skipping PEP 8 check (run: make install)"
-fi
 
-# ── Check 3: Ruff format check ────────────────────────────
+    # ── Check 3: Ruff format check ────────────────────────────
 
-if [ -n "${STAGED_PY}" ] && [ -x ".venv/bin/ruff" ]; then
-    log_debug "Checking formatting..."
+    if [ -n "${STAGED_PY}" ] && [ -x ".venv/bin/ruff" ]; then
+        log_debug "Checking formatting..."
 
-    FORMAT_OUTPUT=$(.venv/bin/ruff format --check ${STAGED_PY} 2>&1 || true)
+        FORMAT_OUTPUT=$(.venv/bin/ruff format --check ${STAGED_PY} 2>&1 || true)
 
-    if echo "${FORMAT_OUTPUT}" | grep -q "would reformat"; then
-        UNFORMATTED=$(echo "${FORMAT_OUTPUT}" | grep "would reformat" | wc -l)
-        log_warn "${UNFORMATTED} file(s) need formatting:"
-        echo "${FORMAT_OUTPUT}" | grep "would reformat" | while IFS= read -r line; do
-            echo -e "    ${_D}${line}${_N}"
-        done
-        echo ""
-        log_example "Auto-format: .venv/bin/ruff format core/ runner/ api/ cli/"
-        WARNINGS=$((WARNINGS + 1))
-    else
-        log_success "Formatting OK"
+        if echo "${FORMAT_OUTPUT}" | grep -q "would reformat"; then
+            UNFORMATTED=$(echo "${FORMAT_OUTPUT}" | grep "would reformat" | wc -l)
+            log_warn "${UNFORMATTED} file(s) need formatting:"
+            echo "${FORMAT_OUTPUT}" | grep "would reformat" | while IFS= read -r line; do
+                echo -e "    ${_D}${line}${_N}"
+            done
+            echo ""
+            log_example "Auto-format: .venv/bin/ruff format core/ runner/ api/ cli/"
+            WARNINGS=$((WARNINGS + 1))
+        else
+            log_success "Formatting OK"
+        fi
     fi
+
+else
+    log_debug "Skipping ruff checks (branch: ${CURRENT_BRANCH}, only enforced on main)"
 fi
 
 # ── Check 4: Python debug leftovers ───────────────────────

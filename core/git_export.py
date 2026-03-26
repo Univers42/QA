@@ -19,7 +19,6 @@ Usage:
 import json
 from pathlib import Path
 
-
 DEFINITIONS_DIR = Path("test-definitions")
 
 # Fields that are internal to MongoDB and should not appear in the JSON files

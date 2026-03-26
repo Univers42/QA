@@ -6,15 +6,13 @@ Endpoints:
     WS   /ws/run        WebSocket: stream results test-by-test in real time
 """
 
-import json
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from pymongo.database import Database
 
 from api.deps import get_database
-from runner.executor import execute_http_test
 from runner.bash_executor import execute_bash_test
+from runner.executor import execute_http_test
 from runner.results import persist_result
-
 
 router = APIRouter()
 
@@ -129,10 +127,12 @@ async def ws_run(ws: WebSocket):
 
         await ws.send_json({"type": "result", **result})
 
-    await ws.send_json({
-        "type": "done",
-        "passed": passed,
-        "failed": failed,
-        "duration_ms": total_ms,
-    })
+    await ws.send_json(
+        {
+            "type": "done",
+            "passed": passed,
+            "failed": failed,
+            "duration_ms": total_ms,
+        }
+    )
     await ws.close()

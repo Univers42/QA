@@ -9,7 +9,8 @@ Usage:
     persist_result(result_dict, environment="local", run_by="developer")
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from core.db import get_db
 
 
@@ -33,7 +34,7 @@ def persist_result(
         **result,
         "environment": environment,
         "run_by": run_by,
-        "executed_at": datetime.now(timezone.utc),
+        "executed_at": datetime.now(UTC),
     }
     db["results"].insert_one(doc)
     return doc
