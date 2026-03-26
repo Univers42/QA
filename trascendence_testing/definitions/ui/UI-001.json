@@ -1,0 +1,33 @@
+{
+  "id": "UI-001",
+  "title": "Transcendence login smoke suite renders the auth entrypoint",
+  "domain": "ui",
+  "type": "bash",
+  "suite": "trascendence_testing",
+  "module": "frontend-smoke",
+  "component": "login",
+  "priority": "P0",
+  "status": "active",
+  "tags": [
+    "playwright",
+    "smoke",
+    "login"
+  ],
+  "phase": "phase-1",
+  "layer": "smoke",
+  "environment": [
+    "local",
+    "dev",
+    "preview",
+    "staging"
+  ],
+  "preconditions": [
+    "The frontend URL for the selected environment is reachable.",
+    "Run make tt-install at least once before executing Playwright-backed battery tests."
+  ],
+  "notes": "Runs the reusable Playwright login smoke checks stored in trascendence_testing.",
+  "script": "bash trascendence_testing/scripts/run-playwright.sh --grep '@login' --target ${TEST_ENV:-local}",
+  "working_dir": ".",
+  "expected_exit_code": 0,
+  "timeout_seconds": 120
+}

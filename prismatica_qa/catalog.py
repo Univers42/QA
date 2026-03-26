@@ -45,6 +45,7 @@ DEFAULT_PRIORITY = "P1"
 DEFAULT_STATUS = "draft"
 
 
+# Normalize a user-provided domain value and reject unsupported aliases.
 def normalize_domain(value: str) -> str:
     normalized = value.strip().lower()
     normalized = DOMAIN_ALIASES.get(normalized, normalized)

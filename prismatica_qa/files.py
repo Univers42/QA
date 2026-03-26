@@ -16,6 +16,9 @@ FIELD_ORDER = (
     "description",
     "domain",
     "type",
+    "suite",
+    "module",
+    "component",
     "priority",
     "status",
     "tags",
@@ -31,6 +34,7 @@ FIELD_ORDER = (
     "timeout_seconds",
     "expected",
     "script",
+    "working_dir",
     "expected_exit_code",
     "expected_output",
 )
@@ -45,6 +49,7 @@ class DefinitionFile:
     error: str | None = None
 
 
+# Yield JSON definition files from one definition root, optionally filtered by domain.
 def iter_definition_files(tests_dir: Path, domain: str | None = None) -> Iterable[Path]:
     roots: list[Path]
     if domain:
@@ -58,6 +63,7 @@ def iter_definition_files(tests_dir: Path, domain: str | None = None) -> Iterabl
         yield from sorted(root.glob("*.json"))
 
 
+# Load JSON definitions from one root and keep file-level read or parse errors.
 def read_definition_files(tests_dir: Path, domain: str | None = None) -> list[DefinitionFile]:
     items: list[DefinitionFile] = []
     for path in iter_definition_files(tests_dir, domain):
@@ -71,6 +77,25 @@ def read_definition_files(tests_dir: Path, domain: str | None = None) -> list[De
     return items
 
 
+# Merge definition files coming from multiple roots into one ordered list.
+def read_definition_files_from_roots(definition_dirs: Iterable[Path], domain: str | None = None) -> list[DefinitionFile]:
+    items: list[DefinitionFile] = []
+    seen_paths: set[Path] = set()
+
+    for definition_dir in definition_dirs:
+        if not definition_dir.exists():
+            continue
+        for item in read_definition_files(definition_dir, domain):
+            if item.path in seen_paths:
+                continue
+            seen_paths.add(item.path)
+            items.append(item)
+
+    items.sort(key=lambda item: str(item.path))
+    return items
+
+
+# Validate required fields before delegating to the canonical model validator.
 def validation_errors(doc: dict[str, Any]) -> list[str]:
     for field in REQUIRED_FIELDS:
         if field not in doc or doc[field] in (None, ""):
@@ -78,11 +103,13 @@ def validation_errors(doc: dict[str, Any]) -> list[str]:
     return model_validation_errors(doc)
 
 
-def next_test_id(domain: str, tests_dir: Path) -> str:
+# Compute the next domain-specific test identifier across one or more roots.
+def next_test_id(domain: str, tests_dirs: Path | Iterable[Path]) -> str:
     spec = DOMAINS[normalize_domain(domain)]
     highest = 0
+    roots = [tests_dirs] if isinstance(tests_dirs, Path) else list(tests_dirs)
 
-    for item in read_definition_files(tests_dir, spec.key):
+    for item in read_definition_files_from_roots(roots, spec.key):
         if not item.doc:
             continue
         raw_id = str(item.doc.get("id", "")).strip()
@@ -93,11 +120,13 @@ def next_test_id(domain: str, tests_dir: Path) -> str:
     return f"{spec.prefix}-{highest + 1:03d}"
 
 
+# Resolve the repository path where a definition JSON file should be written.
 def definition_path(tests_dir: Path, domain: str, test_id: str) -> Path:
     spec = DOMAINS[normalize_domain(domain)]
     return tests_dir / spec.folder / f"{test_id}.json"
 
 
+# Canonicalize and compact a definition before serializing it to JSON.
 def compact_definition(doc: dict[str, Any]) -> dict[str, Any]:
     doc = canonicalize_test(doc)
     compact: dict[str, Any] = {}
@@ -126,6 +155,7 @@ def compact_definition(doc: dict[str, Any]) -> dict[str, Any]:
     return compact
 
 
+# Write one canonicalized test definition to disk.
 def write_definition(path: Path, doc: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

@@ -84,6 +84,7 @@ class ModelValidationError(ValueError):
     pass
 
 
+# Read and validate a required string field from a raw document.
 def require_string(doc: dict[str, Any], field: str, *, min_length: int = 1) -> str:
     value = doc.get(field)
     if not isinstance(value, str) or len(value.strip()) < min_length:
@@ -91,6 +92,7 @@ def require_string(doc: dict[str, Any], field: str, *, min_length: int = 1) -> s
     return value.strip()
 
 
+# Normalize an optional string field to a stripped value or None.
 def optional_string(value: Any) -> str | None:
     if value in (None, ""):
         return None
@@ -100,6 +102,7 @@ def optional_string(value: Any) -> str | None:
     return stripped or None
 
 
+# Normalize an optional list of strings and remove duplicates.
 def optional_string_list(value: Any) -> list[str] | None:
     if value in (None, ""):
         return None
@@ -109,6 +112,7 @@ def optional_string_list(value: Any) -> list[str] | None:
     return cleaned or None
 
 
+# Validate an optional string-to-string mapping such as HTTP headers.
 def optional_string_dict(value: Any) -> dict[str, str] | None:
     if value is None:
         return None
@@ -122,6 +126,7 @@ def optional_string_dict(value: Any) -> dict[str, str] | None:
     return result or None
 
 
+# Resolve the canonical layer, including legacy documents that stored it in type.
 def optional_layer(doc: dict[str, Any], detected_type: str) -> str | None:
     raw_layer = doc.get("layer")
     if isinstance(raw_layer, str) and raw_layer in LAYERS:
@@ -134,6 +139,7 @@ def optional_layer(doc: dict[str, Any], detected_type: str) -> str | None:
     return None
 
 
+# Ensure a test id matches the expected prefix for its domain.
 def validate_test_id(test_id: str, domain: str) -> None:
     match = ID_RE.match(test_id)
     if not match:
@@ -147,6 +153,7 @@ def validate_test_id(test_id: str, domain: str) -> None:
         )
 
 
+# Infer the executable test kind from canonical or legacy fields.
 def detect_test_type(doc: dict[str, Any]) -> str:
     raw_type = doc.get("type")
     if raw_type in ("http", "bash", "manual"):
@@ -180,6 +187,7 @@ class TestBase:
     notes: str | None = None
     extras: dict[str, Any] = field(default_factory=dict)
 
+    # Build the shared test fields from a raw definition document.
     @classmethod
     def from_doc(cls, doc: dict[str, Any], detected_type: str) -> "TestBase":
         test_id = require_string(doc, "id")
@@ -214,6 +222,7 @@ class TestBase:
             extras=extras,
         )
 
+    # Serialize the shared test fields back into canonical JSON form.
     def common_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
             "id": self.id,
@@ -243,6 +252,7 @@ class HttpExpected:
     body_contains: list[str] | None = None
     json_path: dict[str, Any] | None = None
 
+    # Parse HTTP expectations from the raw expected block.
     @classmethod
     def from_doc(cls, expected: Any) -> "HttpExpected":
         if not isinstance(expected, dict):
@@ -256,6 +266,7 @@ class HttpExpected:
             raise ModelValidationError("expected.jsonPath must be an object")
         return cls(status_code=status_code, body_contains=body_contains, json_path=json_path)
 
+    # Serialize HTTP expectations back into canonical JSON form.
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"statusCode": self.status_code}
         if self.body_contains:
@@ -275,6 +286,7 @@ class HttpTest:
     payload: dict[str, Any] | None = None
     expected: HttpExpected | None = None
 
+    # Build a canonical HTTP test model from a raw definition.
     @classmethod
     def from_doc(cls, doc: dict[str, Any]) -> "HttpTest":
         base = TestBase.from_doc(doc, "http")
@@ -302,6 +314,7 @@ class HttpTest:
             expected=expected,
         )
 
+    # Serialize an HTTP test back into canonical JSON form.
     def to_dict(self) -> dict[str, Any]:
         result = self.base.common_dict()
         result.update(
@@ -328,6 +341,7 @@ class BashTest:
     expected_output: str | None = None
     timeout_seconds: int = 30
 
+    # Build a canonical bash test model from a raw definition.
     @classmethod
     def from_doc(cls, doc: dict[str, Any]) -> "BashTest":
         base = TestBase.from_doc(doc, "bash")
@@ -364,6 +378,7 @@ class BashTest:
             timeout_seconds=timeout_seconds,
         )
 
+    # Serialize a bash test back into canonical JSON form.
     def to_dict(self) -> dict[str, Any]:
         result = self.base.common_dict()
         result.update(
@@ -384,6 +399,7 @@ class ManualTest:
     base: TestBase
     type: str | None = "manual"
 
+    # Build a canonical manual test model from a raw definition.
     @classmethod
     def from_doc(cls, doc: dict[str, Any]) -> "ManualTest":
         base = TestBase.from_doc(doc, "manual")
@@ -392,12 +408,14 @@ class ManualTest:
             raise ModelValidationError("Manual tests must have type 'manual' or no type")
         return cls(base=base, type="manual" if raw_type is not None else None)
 
+    # Serialize a manual test back into canonical JSON form.
     def to_dict(self) -> dict[str, Any]:
         result = self.base.common_dict()
         result["type"] = "manual"
         return result
 
 
+# Parse one raw definition into the matching canonical test model.
 def parse_test(doc: dict[str, Any]) -> HttpTest | BashTest | ManualTest:
     detected_type = detect_test_type(doc)
     if detected_type == "http":
@@ -407,10 +425,12 @@ def parse_test(doc: dict[str, Any]) -> HttpTest | BashTest | ManualTest:
     return ManualTest.from_doc(doc)
 
 
+# Convert any supported raw definition into canonical JSON form.
 def canonicalize_test(doc: dict[str, Any]) -> dict[str, Any]:
     return parse_test(doc).to_dict()
 
 
+# Return model validation errors without raising them to the caller.
 def validation_errors(doc: dict[str, Any]) -> list[str]:
     try:
         canonicalize_test(doc)

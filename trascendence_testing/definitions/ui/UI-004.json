@@ -1,0 +1,32 @@
+{
+  "id": "UI-004",
+  "title": "Transcendence error-screen smoke suite exposes a visible not-found state",
+  "domain": "ui",
+  "type": "bash",
+  "suite": "trascendence_testing",
+  "module": "frontend-smoke",
+  "component": "error-screens",
+  "priority": "P1",
+  "status": "active",
+  "tags": [
+    "playwright",
+    "smoke",
+    "errors"
+  ],
+  "phase": "phase-1",
+  "layer": "smoke",
+  "environment": [
+    "local",
+    "dev",
+    "preview",
+    "staging"
+  ],
+  "preconditions": [
+    "The frontend URL for the selected environment is reachable."
+  ],
+  "notes": "Exercises the reusable 404 / error-state smoke assertion.",
+  "script": "bash trascendence_testing/scripts/run-playwright.sh --grep '@errors' --target ${TEST_ENV:-local}",
+  "working_dir": ".",
+  "expected_exit_code": 0,
+  "timeout_seconds": 120
+}

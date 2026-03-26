@@ -16,7 +16,8 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := all
 
 .PHONY: help all banner preflight check-docker check-compose check-env build ensure-image \
-	up down logs ps add validate sync run run-interactive export shell install seed test clean
+	up down logs ps add validate sync run run-interactive export shell install seed test clean \
+	tt-install tt-smoke tt-headers
 
 # ── Compose auto-detection ────────────────────────────────────────────────────
 COMPOSE_CMD := $(shell \
@@ -217,6 +218,24 @@ seed: sync  ## Alias for sync
 test: run  ## Alias for run
 
 # ============================================
+#  TRANSCENDENCE TESTING
+# ============================================
+
+tt-install:  ## Install local Playwright dependencies for trascendence_testing on the host
+	@$(call step,$(BLUE)ℹ,Installing trascendence_testing npm dependencies...)
+	@cd trascendence_testing && npm install
+	@cd trascendence_testing && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
+	@$(call step,$(GREEN)✓,trascendence_testing is ready)
+
+tt-smoke:  ## Run Playwright smoke checks from trascendence_testing on the host
+	@$(call step,$(BLUE)ℹ,Running Transcendence smoke suite against $(ENV)...)
+	@bash trascendence_testing/scripts/run-playwright.sh --suite smoke --target $(ENV) $(ARGS)
+
+tt-headers:  ## Run reusable header and cookie assertions from trascendence_testing on the host
+	@$(call step,$(BLUE)ℹ,Checking frontend headers and cookies against $(ENV)...)
+	@bash trascendence_testing/scripts/run-http-surface.sh --target $(ENV) $(ARGS)
+
+# ============================================
 #  CLEANUP
 # ============================================
 
@@ -243,4 +262,7 @@ help:  ## Show available commands
 	@echo -e "  $(DIM)  make validate DOMAIN=auth$(NC)"
 	@echo -e "  $(DIM)  make run DOMAIN=auth TYPE=http STATUS=active$(NC)"
 	@echo -e "  $(DIM)  make run-interactive$(NC)"
+	@echo -e "  $(DIM)  make tt-install$(NC)"
+	@echo -e "  $(DIM)  make tt-smoke ENV=preview$(NC)"
+	@echo -e "  $(DIM)  make tt-headers ENV=staging$(NC)"
 	@echo ""

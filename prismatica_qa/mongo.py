@@ -6,6 +6,7 @@ from typing import Any, Iterable
 from .catalog import DOMAINS
 
 
+# Return the current UTC timestamp for persisted records.
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -15,6 +16,7 @@ class MongoUnavailableError(RuntimeError):
 
 
 class MongoStore:
+    # Open a MongoDB connection and cache the collections used by the runner.
     def __init__(self, mongo_uri: str | None) -> None:
         if not mongo_uri:
             raise MongoUnavailableError("MONGO_URI is not configured.")
@@ -43,20 +45,23 @@ class MongoStore:
         self.suites = self._db["suites"]
         self.counters = self._db["counters"]
 
+    # Close the underlying MongoDB client.
     def close(self) -> None:
         self._client.close()
 
+    # Create the indexes needed for test lookups and historical reporting.
     def ensure_indexes(self) -> None:
         self.tests.create_index("id", unique=True)
-        self.tests.create_index([("domain", 1), ("type", 1), ("layer", 1), ("priority", 1), ("status", 1)])
+        self.tests.create_index([("suite", 1), ("domain", 1), ("type", 1), ("layer", 1), ("priority", 1), ("status", 1)])
         self.tests.create_index("environment")
         self.results.create_index([("test_id", 1), ("environment", 1), ("executed_at", -1)])
-        self.results.create_index([("environment", 1), ("domain", 1), ("type", 1), ("executed_at", -1)])
+        self.results.create_index([("suite", 1), ("environment", 1), ("domain", 1), ("type", 1), ("executed_at", -1)])
         self.results.create_index([("environment", 1), ("comparison", 1), ("executed_at", -1)])
         self.results.create_index("run_id")
         self.suites.create_index("name", unique=True)
         self.counters.create_index("scope", unique=True)
 
+    # Generate the next domain-specific test id using a Mongo-backed counter.
     def next_test_id(self, domain: str) -> str:
         spec = DOMAINS[domain]
         scope = f"test_id:{domain}"
@@ -84,6 +89,7 @@ class MongoStore:
         )
         return f"{spec.prefix}-{int(counter['value']):03d}"
 
+    # Insert or update canonical test definitions in MongoDB.
     def upsert_tests(self, docs: Iterable[dict[str, Any]]) -> dict[str, int]:
         summary = {"inserted": 0, "updated": 0, "unchanged": 0}
         now = utc_now()
@@ -108,6 +114,7 @@ class MongoStore:
 
         return summary
 
+    # Fetch test definitions from MongoDB using the execution filters.
     def fetch_tests(
         self,
         *,
@@ -139,6 +146,7 @@ class MongoStore:
 
         return list(self.tests.find(query).sort("id", 1))
 
+    # Fetch stored definitions for export back into repository JSON files.
     def fetch_definitions(
         self,
         *,
@@ -152,6 +160,7 @@ class MongoStore:
             query["status"] = status
         return list(self.tests.find(query).sort("id", 1))
 
+    # Load the latest stored result for each requested test id.
     def latest_results_map(self, test_ids: list[str], environment: str) -> dict[str, dict[str, Any]]:
         if not test_ids:
             return {}
@@ -165,6 +174,7 @@ class MongoStore:
         rows = self.results.aggregate(pipeline)
         return {row["_id"]: row["doc"] for row in rows}
 
+    # Persist one execution batch and update each definition with its last run metadata.
     def store_results(
         self,
         outcomes: Iterable[dict[str, Any]],
@@ -184,6 +194,9 @@ class MongoStore:
                 "run_id": run_id,
                 "test_id": test["id"],
                 "title": test["title"],
+                "suite": test.get("suite"),
+                "module": test.get("module"),
+                "component": test.get("component"),
                 "domain": test["domain"],
                 "type": test.get("type", "manual"),
                 "layer": test.get("layer"),

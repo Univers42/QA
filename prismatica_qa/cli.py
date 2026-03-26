@@ -30,6 +30,7 @@ from .catalog import (
 )
 from .env import load_settings
 from .files import DefinitionFile, definition_path, next_test_id, read_definition_files, validation_errors, write_definition
+from .files import read_definition_files_from_roots
 from .models import canonicalize_test
 from .mongo import MongoStore, MongoUnavailableError
 from .runner import RunOutcome, git_sha, run_tests
@@ -37,6 +38,7 @@ from .runner import RunOutcome, git_sha, run_tests
 console = Console()
 
 
+# Render a plain Rich panel with a consistent title and border style.
 def plain_panel(title: str, message: str, *, border_style: str) -> None:
     console.print(
         Panel.fit(
@@ -49,26 +51,32 @@ def plain_panel(title: str, message: str, *, border_style: str) -> None:
     )
 
 
+# Render an informational panel.
 def print_info(title: str, message: str) -> None:
     plain_panel(title, message, border_style="cyan")
 
 
+# Render a success panel.
 def print_success(title: str, message: str) -> None:
     plain_panel(title, message, border_style="green")
 
 
+# Render a warning panel.
 def print_warning(title: str, message: str) -> None:
     plain_panel(title, message, border_style="yellow")
 
 
+# Render an error panel.
 def print_error(title: str, message: str) -> None:
     plain_panel(title, message, border_style="red")
 
 
+# Format a short colored badge for table output.
 def badge(label: str, style: str) -> str:
     return f"[bold white on {style}] {label} [/] "
 
 
+# Format the badge used for a test type.
 def type_badge(test_type: str | None) -> str:
     palette = {
         "http": "blue",
@@ -79,12 +87,14 @@ def type_badge(test_type: str | None) -> str:
     return badge(test_type or "-", palette.get(test_type, "bright_black"))
 
 
+# Format the badge used for a test layer.
 def layer_badge(layer: str | None) -> str:
     if not layer:
         return "[dim]-[/dim]"
     return badge(layer, "bright_black")
 
 
+# Format the badge used for a test status.
 def status_badge(status: str | None) -> str:
     palette = {
         "active": "green",
@@ -96,6 +106,7 @@ def status_badge(status: str | None) -> str:
     return badge(status or "-", palette.get(status, "bright_black"))
 
 
+# Format the badge used for a test priority.
 def priority_badge(priority: str | None) -> str:
     palette = {
         "P0": "red",
@@ -107,6 +118,7 @@ def priority_badge(priority: str | None) -> str:
     return badge(priority or "-", palette.get(priority, "bright_black"))
 
 
+# Format the badge used for run-to-run comparisons.
 def compare_badge(label: str) -> str:
     palette = {
         "new": "blue",
@@ -118,14 +130,17 @@ def compare_badge(label: str) -> str:
     return badge(label, palette.get(label, "bright_black"))
 
 
+# Format the badge used for pass or fail results.
 def result_badge(passed: bool) -> str:
     return badge("PASS", "green") if passed else badge("FAIL", "red")
 
 
+# Format a numeric count with a color style.
 def format_count(value: int, style: str) -> str:
     return f"[bold {style}]{value}[/]"
 
 
+# Render a table of validation or execution issues.
 def print_issue_table(title: str, errors: list[str], *, border_style: str = "red") -> None:
     if not errors:
         return
@@ -150,6 +165,7 @@ def print_issue_table(title: str, errors: list[str], *, border_style: str = "red
     console.print(table)
 
 
+# Show the summary card for a newly created definition.
 def print_definition_card(path: Any, definition: dict[str, Any], root: Any) -> None:
     table = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
     table.add_column("Field", style="bold cyan")
@@ -173,6 +189,7 @@ def print_definition_card(path: Any, definition: dict[str, Any], root: Any) -> N
     )
 
 
+# Render the execution plan summary before a run starts.
 def print_run_plan(
     tests: list[dict[str, Any]],
     *,
@@ -214,14 +231,17 @@ def print_run_plan(
     )
 
 
+# Return the current user name for result attribution.
 def default_author() -> str:
     return os.getenv("USER", "unknown")
 
 
+# Split a comma-separated string into normalized items.
 def comma_list(value: str) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
+# Normalize free-text input to a stripped string or None.
 def normalize_optional_text(value: str | None) -> str | None:
     if value is None:
         return None
@@ -229,10 +249,12 @@ def normalize_optional_text(value: str | None) -> str | None:
     return stripped or None
 
 
+# Render the visible option list for interactive prompts.
 def format_options(choices: list[str] | tuple[str, ...]) -> str:
     return " | ".join(choices)
 
 
+# Build a prompt label including options and optional markers.
 def prompt_label(label: str, *, options: list[str] | tuple[str, ...] | None = None, optional: bool = False) -> str:
     suffix: list[str] = []
     if options:
@@ -242,6 +264,7 @@ def prompt_label(label: str, *, options: list[str] | tuple[str, ...] | None = No
     return f"{label} {' '.join(suffix)}".strip()
 
 
+# Match free-text input against one of the allowed choices.
 def normalize_choice(value: str, choices: list[str] | tuple[str, ...]) -> str | None:
     normalized = value.strip().lower()
     for choice in choices:
@@ -250,6 +273,7 @@ def normalize_choice(value: str, choices: list[str] | tuple[str, ...]) -> str | 
     return None
 
 
+# Parse an optional JSON object from CLI or prompt input.
 def parse_json_object(raw_value: str | None, label: str) -> dict[str, Any] | None:
     value = normalize_optional_text(raw_value)
     if value is None:
@@ -265,6 +289,7 @@ def parse_json_object(raw_value: str | None, label: str) -> dict[str, Any] | Non
     return parsed
 
 
+# Read a required or optional text value from flags or interactive input.
 def prompt_text(
     value: str | None,
     label: str,
@@ -294,6 +319,7 @@ def prompt_text(
         print_warning("Invalid Input", f"{label} cannot be empty. Please try again.")
 
 
+# Read a constrained choice from flags or interactive input.
 def prompt_choice(
     value: str | None,
     label: str,
@@ -330,6 +356,7 @@ def prompt_choice(
         print_warning("Invalid Option", f"{label} must be one of: {', '.join(choices)}.")
 
 
+# Read an integer value from flags or interactive input.
 def prompt_int(
     value: int | None,
     label: str,
@@ -355,6 +382,7 @@ def prompt_int(
         return result
 
 
+# Read a comma-separated list from flags or interactive input.
 def prompt_csv_list(
     value: str | None,
     label: str,
@@ -368,6 +396,7 @@ def prompt_csv_list(
     return comma_list(Prompt.ask(prompt_label(label, optional=True), default=""))
 
 
+# Read and validate a JSON object from flags or interactive input.
 def prompt_json_object(
     value: str | None,
     label: str,
@@ -386,6 +415,7 @@ def prompt_json_object(
             print_warning("Invalid JSON", str(exc))
 
 
+# Expand a relative endpoint into a full URL when a base URL is configured.
 def format_url(input_value: str, domain: str, settings: Any) -> str:
     value = input_value.strip()
     if value.startswith(("http://", "https://")):
@@ -398,6 +428,7 @@ def format_url(input_value: str, domain: str, settings: Any) -> str:
     return base_url.rstrip("/") + "/" + value.lstrip("/")
 
 
+# Build the raw definition document from the collected CLI inputs.
 def build_definition(
     *,
     test_id: str,
@@ -480,12 +511,14 @@ def build_definition(
     return definition
 
 
+# Open MongoDB and ensure the required indexes exist.
 def open_mongo(settings: Any) -> MongoStore:
     store = MongoStore(settings.mongo_uri)
     store.ensure_indexes()
     return store
 
 
+# Print the local persistence notice shown at the start of each command.
 def print_local_mode_notice() -> None:
     print_warning(
         "Notice",
@@ -496,6 +529,7 @@ def print_local_mode_notice() -> None:
     )
 
 
+# Validate and synchronize a list of definition files into MongoDB.
 def sync_documents(settings: Any, items: list[DefinitionFile]) -> tuple[dict[str, int], list[str]]:
     docs: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -522,6 +556,7 @@ def sync_documents(settings: Any, items: list[DefinitionFile]) -> tuple[dict[str
     return summary, errors
 
 
+# Validate a list of definition files without touching MongoDB.
 def validate_documents(settings: Any, items: list[DefinitionFile]) -> tuple[dict[str, int], list[str]]:
     summary = {"valid": 0, "invalid": 0, "total": len(items)}
     errors: list[str] = []
@@ -542,6 +577,7 @@ def validate_documents(settings: Any, items: list[DefinitionFile]) -> tuple[dict
     return summary, errors
 
 
+# Render the summary table for a MongoDB synchronization step.
 def print_sync_summary(summary: dict[str, int], errors: list[str]) -> None:
     table = Table(
         title="MongoDB Sync",
@@ -571,6 +607,7 @@ def print_sync_summary(summary: dict[str, int], errors: list[str]) -> None:
         print_success("Sync Completed", "All selected definitions were synchronized successfully.")
 
 
+# Render the summary table for a definition validation step.
 def print_validation_summary(summary: dict[str, int], errors: list[str]) -> None:
     table = Table(
         title="Definition Validation",
@@ -598,6 +635,7 @@ def print_validation_summary(summary: dict[str, int], errors: list[str]) -> None
         print_success("Validation Passed", "All selected JSON definitions are valid.")
 
 
+# Check whether one canonical test matches the selected run filters.
 def matches_filters(
     test: dict[str, Any],
     *,
@@ -625,6 +663,7 @@ def matches_filters(
     return True
 
 
+# Load, validate, canonicalize, and filter JSON definitions for execution.
 def load_tests_from_json(
     settings: Any,
     items: list[DefinitionFile],
@@ -665,6 +704,7 @@ def load_tests_from_json(
     return tests, errors
 
 
+# Read and normalize the selected domain for the add command.
 def prompt_domain(value: str | None, *, quick: bool) -> str:
     choices = list(DOMAINS)
     parsed = normalize_optional_text(value)
@@ -681,6 +721,7 @@ def prompt_domain(value: str | None, *, quick: bool) -> str:
             print_warning("Invalid Option", str(exc))
 
 
+# Implement the add command in interactive or quick mode.
 def prompt_add(args: argparse.Namespace) -> int:
     settings = load_settings()
     try:
@@ -843,7 +884,7 @@ def prompt_add(args: argparse.Namespace) -> int:
             if test_kind != "manual" and args.notes is None:
                 notes = prompt_text(None, "Notes", quick=False, optional=True)
 
-        test_id = next_test_id(domain, settings.tests_dir)
+        test_id = next_test_id(domain, settings.definition_dirs)
         definition = build_definition(
             test_id=test_id,
             domain=domain,
@@ -892,6 +933,7 @@ def prompt_add(args: argparse.Namespace) -> int:
     return 0
 
 
+# Prompt interactively for run filters when the user asked for it.
 def prompt_run_filters(args: argparse.Namespace) -> None:
     args.domain = Prompt.ask("Domain", choices=["all", *DOMAINS.keys()], default="all")
     args.test_type = Prompt.ask("Type", choices=["all", *TEST_KINDS], default="all")
@@ -900,6 +942,7 @@ def prompt_run_filters(args: argparse.Namespace) -> None:
     args.status = Prompt.ask("Status", choices=["all", *STATUSES], default=args.status)
 
 
+# Render the detailed result table for one completed run.
 def print_run_results(outcomes: list[RunOutcome]) -> None:
     table = Table(
         title="Prismatica QA Run",
@@ -965,10 +1008,11 @@ def print_run_results(outcomes: list[RunOutcome]) -> None:
     )
 
 
+# Implement the sync command.
 def command_sync(args: argparse.Namespace) -> int:
     settings = load_settings()
     domain = None if args.domain == "all" else args.domain
-    items = read_definition_files(settings.tests_dir, domain)
+    items = read_definition_files_from_roots(settings.definition_dirs, domain)
 
     try:
         summary, errors = sync_documents(settings, items)
@@ -980,15 +1024,17 @@ def command_sync(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+# Implement the validate command.
 def command_validate(args: argparse.Namespace) -> int:
     settings = load_settings()
     domain = None if args.domain == "all" else args.domain
-    items = read_definition_files(settings.tests_dir, domain)
+    items = read_definition_files_from_roots(settings.definition_dirs, domain)
     summary, errors = validate_documents(settings, items)
     print_validation_summary(summary, errors)
     return 1 if errors else 0
 
 
+# Implement the run command including optional MongoDB history and persistence.
 def command_run(args: argparse.Namespace) -> int:
     settings = load_settings()
     if (
@@ -1006,7 +1052,7 @@ def command_run(args: argparse.Namespace) -> int:
 
     if not args.no_sync:
         try:
-            summary, errors = sync_documents(settings, read_definition_files(settings.tests_dir, domain))
+            summary, errors = sync_documents(settings, read_definition_files_from_roots(settings.definition_dirs, domain))
             if errors:
                 print_warning(
                     "Sync Completed With Issues",
@@ -1019,7 +1065,7 @@ def command_run(args: argparse.Namespace) -> int:
                 f"Running directly from repository JSON.\n{exc}"
             )
 
-    items = read_definition_files(settings.tests_dir, domain)
+    items = read_definition_files_from_roots(settings.definition_dirs, domain)
     tests, definition_errors = load_tests_from_json(
         settings,
         items,
@@ -1099,6 +1145,7 @@ def command_run(args: argparse.Namespace) -> int:
     return 1 if any(not outcome.passed for outcome in outcomes) else 0
 
 
+# Build the top-level argparse parser and all subcommands.
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Python QA automation for Prismatica",
@@ -1160,6 +1207,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Export stored MongoDB definitions back into their JSON roots.
 def command_export(args: argparse.Namespace) -> int:
     settings = load_settings()
     domain = None if args.domain == "all" else args.domain
@@ -1182,7 +1230,7 @@ def command_export(args: argparse.Namespace) -> int:
     exported = 0
     for doc in docs:
         doc.pop("_id", None)
-        path = definition_path(settings.tests_dir, doc["domain"], doc["id"])
+        path = definition_path(settings.definition_dir_for_suite(doc.get("suite")), doc["domain"], doc["id"])
         write_definition(path, doc)
         exported += 1
 
@@ -1190,6 +1238,7 @@ def command_export(args: argparse.Namespace) -> int:
     return 0
 
 
+# Parse CLI arguments and dispatch to the selected command.
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

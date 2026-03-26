@@ -35,6 +35,7 @@ class RunOutcome:
     comparison: str
 
 
+# Return the current repository short SHA for result traceability.
 def git_sha(root: str) -> str | None:
     try:
         result = subprocess.run(
@@ -48,6 +49,7 @@ def git_sha(root: str) -> str | None:
     return result.stdout.strip() or None
 
 
+# Resolve a test URL, expanding relative paths from the configured domain base URL.
 def resolve_url(test: dict[str, Any], settings: Settings) -> str:
     raw_url = str(test.get("url", "")).strip()
     if raw_url.startswith(("http://", "https://")):
@@ -60,6 +62,7 @@ def resolve_url(test: dict[str, Any], settings: Settings) -> str:
     return urllib.parse.urljoin(base_url.rstrip("/") + "/", raw_url.lstrip("/"))
 
 
+# Decode the payload section of a JWT token without external dependencies.
 def decode_jwt_payload(token: str) -> dict[str, Any]:
     parts = token.split(".")
     if len(parts) < 2:
@@ -71,6 +74,7 @@ def decode_jwt_payload(token: str) -> dict[str, Any]:
     return json.loads(decoded)
 
 
+# Extract a JWT-like token from a JSON response body when present.
 def extract_jwt_from_body(body_text: str) -> str | None:
     try:
         body = json.loads(body_text)
@@ -87,6 +91,7 @@ def extract_jwt_from_body(body_text: str) -> str | None:
     return None
 
 
+# Classify the current result against the previous stored outcome.
 def comparison_label(previous: dict[str, Any] | None, passed: bool) -> str:
     if not previous:
         return "new"
@@ -101,6 +106,7 @@ def comparison_label(previous: dict[str, Any] | None, passed: bool) -> str:
     return "stable-fail"
 
 
+# Evaluate HTTP expectations against the actual response data.
 def evaluate_expected(test: dict[str, Any], status_code: int, body_text: str, headers: dict[str, str]) -> list[str]:
     expected = test.get("expected", {})
     errors: list[str] = []
@@ -165,6 +171,7 @@ def evaluate_expected(test: dict[str, Any], status_code: int, body_text: str, he
     return errors
 
 
+# Execute one HTTP test and collect its normalized outcome.
 def execute_http_test(test: dict[str, Any], settings: Settings, previous: dict[str, Any] | None) -> RunOutcome:
     start = time.perf_counter()
 
@@ -240,6 +247,7 @@ def execute_http_test(test: dict[str, Any], settings: Settings, previous: dict[s
     )
 
 
+# Execute one bash/script test and collect its normalized outcome.
 def execute_script_test(test: dict[str, Any], previous: dict[str, Any] | None) -> RunOutcome:
     start = time.perf_counter()
     command = str(test.get("script", "")).strip()
@@ -305,6 +313,7 @@ def execute_script_test(test: dict[str, Any], previous: dict[str, Any] | None) -
     )
 
 
+# Execute one manual test by asking the operator for confirmation.
 def execute_manual_test(test: dict[str, Any], previous: dict[str, Any] | None) -> RunOutcome:
     start = time.perf_counter()
 
@@ -352,6 +361,7 @@ def execute_manual_test(test: dict[str, Any], previous: dict[str, Any] | None) -
     )
 
 
+# Dispatch one test to the matching executor based on its type.
 def execute_test(test: dict[str, Any], settings: Settings, previous: dict[str, Any] | None) -> RunOutcome:
     test_type = detect_test_type(test)
     if test_type == "http":
@@ -372,6 +382,7 @@ def execute_test(test: dict[str, Any], settings: Settings, previous: dict[str, A
     )
 
 
+# Run a batch of tests, parallelizing automated ones and serializing manual ones.
 def run_tests(
     tests: list[dict[str, Any]],
     *,
