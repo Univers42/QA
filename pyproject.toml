@@ -1,7 +1,7 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
-
+ 
 [project]
 name = "prismatica-qa"
 version = "3.0.0"
@@ -18,9 +18,39 @@ dependencies = [
     "typer[all]>=0.9.0",
     "rich>=13.0.0",
 ]
-
+ 
 [project.scripts]
 pqa = "cli.main:app"
-
+ 
 [tool.setuptools.packages.find]
 include = ["core*", "runner*", "api*", "cli*"]
+ 
+# ── Ruff — Linter + Formatter (PEP 8) ─────────────────────
+ 
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+# Only lint our code, not venv or generated files
+include = ["core/**", "runner/**", "api/**", "cli/**", "scripts/**"]
+ 
+[tool.ruff.lint]
+select = [
+    "E",        # pycodestyle errors (PEP 8)
+    "W",        # pycodestyle warnings (PEP 8)
+    "F",        # pyflakes (unused imports, undefined names)
+    "I",        # isort (import ordering)
+    "UP",       # pyupgrade (modern Python syntax)
+    "B",        # flake8-bugbear (common bugs)
+    "SIM",      # flake8-simplify (simplifiable code)
+]
+ignore = [
+    "E501",     # line too long — we set line-length to 100, ruff formatter handles wrapping
+    "B008",     # do not perform function calls in argument defaults — needed for FastAPI Depends()
+]
+ 
+[tool.ruff.lint.isort]
+known-first-party = ["core", "runner", "api", "cli"]
+ 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

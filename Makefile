@@ -6,14 +6,14 @@
 #    By: vjan-nie <vjan-nie@student.42madrid.com    +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/03/24 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/03/25 23:03:30 by vjan-nie         ###   ########.fr        #
+#    Updated: 2026/03/26 16:47:55 by vjan-nie         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 SHELL := /bin/bash
 .SHELLFLAGS := -ec
 
-.PHONY: help all install api test list clean preflight check-python check-env venv hooks
+.PHONY: help all install api test list clean preflight check-python check-env venv hooks lint format
 
 .DEFAULT_GOAL := all
 
@@ -190,6 +190,21 @@ dashboard:  ## 🌐 Start React dashboard (port 5173)
 
 hooks:  ## 🔒 Install git hooks (conventional commits, branch protection)
 	@bash hooks/install.sh
+
+# ============================================
+#  🔍 CODE QUALITY
+# ============================================
+
+lint: install  ## 🔍 Check PEP 8 compliance (ruff)
+	@$(call step,$(BLUE)ℹ,Running ruff linter...)
+	@$(VENV)/bin/ruff check core/ runner/ api/ cli/ scripts/
+	@$(call step,$(GREEN)✓,Lint passed — PEP 8 compliant)
+
+format: install  ## 🔍 Auto-format code (ruff)
+	@$(call step,$(BLUE)ℹ,Formatting code...)
+	@$(VENV)/bin/ruff format core/ runner/ api/ cli/ scripts/
+	@$(VENV)/bin/ruff check --fix core/ runner/ api/ cli/ scripts/
+	@$(call step,$(GREEN)✓,Code formatted)
 
 # ============================================
 #  🧹 CLEANUP
