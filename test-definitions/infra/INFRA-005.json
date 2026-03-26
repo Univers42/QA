@@ -1,21 +1,31 @@
 {
   "id": "INFRA-005",
-  "title": "MinIO object storage responds on port 9000",
+  "author": "vjan-nie",
+  "dependencies": [],
   "description": "Verifies MinIO S3-compatible storage is reachable. Returns 403 on unauthenticated root requests — this is correct behaviour, not an error.",
   "domain": "infra",
-  "type": "http",
-  "priority": "P1",
-  "tags": ["minio", "storage", "smoke"],
-  "service": "minio",
-  "environment": ["local"],
-  "dependencies": [],
-  "preconditions": ["mini-baas-infra services running"],
+  "environment": [
+    "local"
+  ],
   "expected": {
     "statusCode": 403
   },
-  "url": "http://localhost:9000/",
   "method": "GET",
-  "author": "vjan-nie",
   "phase": "phase-0",
-  "status": "active"
+  "preconditions": [
+    "mini-baas-infra services running"
+  ],
+  "priority": "P1",
+  "retries": 1,
+  "service": "minio",
+  "status": "active",
+  "tags": [
+    "minio",
+    "storage",
+    "smoke"
+  ],
+  "timeout_ms": 5000,
+  "title": "MinIO object storage responds on port 9000",
+  "type": "http",
+  "url": "http://localhost:9000/"
 }

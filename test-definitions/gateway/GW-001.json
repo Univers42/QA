@@ -1,0 +1,40 @@
+{
+  "id": "GW-001",
+  "author": "vjan-nie",
+  "dependencies": [
+    "kong",
+    "gotrue"
+  ],
+  "description": "GET through Kong proxy to auth health endpoint. Kong must forward the request to GoTrue on :9999.",
+  "domain": "gateway",
+  "environment": [
+    "local"
+  ],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": [
+      "version"
+    ]
+  },
+  "method": "GET",
+  "notes": "Set active once Kong is added to mini-baas-infra docker-compose.",
+  "phase": "phase-0",
+  "preconditions": [
+    "Kong running on :8000",
+    "GoTrue running on :9999",
+    "kong.yaml configured with auth route"
+  ],
+  "priority": "P0",
+  "retries": 1,
+  "service": "api-gateway",
+  "status": "draft",
+  "tags": [
+    "kong",
+    "routing",
+    "gotrue"
+  ],
+  "timeout_ms": 5000,
+  "title": "Kong routes /auth path to GoTrue service",
+  "type": "http",
+  "url": "http://localhost:8000/auth/health"
+}

@@ -39,7 +39,11 @@ def export_test(test: dict) -> Path:
     path = folder / f"{test_id}.json"
 
     # Remove MongoDB internal fields
-    clean = {k: v for k, v in test.items() if k not in INTERNAL_FIELDS}
+    clean = {k: v for k, v in test.items() if k not in INTERNAL_FIELDS and v is not None}
+
+    # Also clean None values inside nested 'expected' dict
+    if "expected" in clean and isinstance(clean["expected"], dict):
+        clean["expected"] = {k: v for k, v in clean["expected"].items() if v is not None}
 
     path.write_text(
         json.dumps(clean, indent=2, ensure_ascii=False) + "\n",

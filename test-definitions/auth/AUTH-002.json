@@ -1,30 +1,44 @@
 {
   "id": "AUTH-002",
-  "title": "Login with invalid credentials returns 400",
+  "author": "vjan-nie",
+  "dependencies": [
+    "postgres"
+  ],
   "description": "POST to GoTrue with wrong password. Must return 4xx, not 200.",
   "domain": "auth",
-  "type": "http",
-  "priority": "P0",
-  "tags": ["gotrue", "login", "negative"],
-  "service": "auth-service",
-  "environment": ["local"],
-  "dependencies": ["postgres"],
-  "preconditions": ["GoTrue running on :9999"],
+  "environment": [
+    "local"
+  ],
   "expected": {
     "statusCode": 400,
-    "bodyContains": ["error"]
+    "bodyContains": [
+      "error"
+    ]
   },
-  "url": "http://localhost:9999/auth/v1/token?grant_type=password",
-  "method": "POST",
   "headers": {
     "Content-Type": "application/json"
   },
+  "method": "POST",
+  "notes": "GoTrue returns 500 Database error — auth migrations incomplete. Reactivate once bootstrap script seeds the auth schema correctly.",
   "payload": {
     "email": "nobody@prismatica.dev",
     "password": "wrongpassword"
   },
-  "author": "vjan-nie",
   "phase": "phase-1",
+  "preconditions": [
+    "GoTrue running on :9999"
+  ],
+  "priority": "P0",
+  "retries": 1,
+  "service": "auth-service",
   "status": "skipped",
-  "notes": "GoTrue returns 500 Database error — auth migrations incomplete. Reactivate once bootstrap script seeds the auth schema correctly."
+  "tags": [
+    "gotrue",
+    "login",
+    "negative"
+  ],
+  "timeout_ms": 5000,
+  "title": "Login with invalid credentials returns 400",
+  "type": "http",
+  "url": "http://localhost:9999/auth/v1/token?grant_type=password"
 }

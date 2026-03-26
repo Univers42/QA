@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 # ── StrEnums ────────────────────────────────────────────────
 
 
-class Domain(str, StrEnum):
+class Domain(StrEnum):
     auth = "auth"
     gateway = "gateway"
     schema_ = "schema"
@@ -34,14 +34,14 @@ class Domain(str, StrEnum):
     infra = "infra"
 
 
-class Priority(str, StrEnum):
+class Priority(StrEnum):
     P0 = "P0"
     P1 = "P1"
     P2 = "P2"
     P3 = "P3"
 
 
-class Status(str, StrEnum):
+class Status(StrEnum):
     draft = "draft"
     active = "active"
     skipped = "skipped"

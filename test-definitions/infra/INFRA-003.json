@@ -1,23 +1,38 @@
 {
   "id": "INFRA-003",
-  "title": "GoTrue auth service responds on port 9999",
+  "author": "vjan-nie",
+  "dependencies": [
+    "postgres"
+  ],
   "description": "Verifies GoTrue health endpoint is reachable. Required before any auth test can run.",
   "domain": "infra",
-  "type": "http",
-  "priority": "P0",
-  "tags": ["gotrue", "auth", "smoke"],
-  "service": "auth-service",
-  "environment": ["local"],
-  "dependencies": ["postgres"],
-  "preconditions": ["mini-baas-infra services running", "auth schema created in PostgreSQL"],
+  "environment": [
+    "local"
+  ],
   "expected": {
     "statusCode": 200,
-    "bodyContains": ["version"]
+    "bodyContains": [
+      "version"
+    ]
   },
-  "url": "http://localhost:9999/health",
   "method": "GET",
-  "author": "vjan-nie",
+  "notes": "Requires CREATE SCHEMA auth in PostgreSQL before GoTrue can start.",
   "phase": "phase-0",
+  "preconditions": [
+    "mini-baas-infra services running",
+    "auth schema created in PostgreSQL"
+  ],
+  "priority": "P0",
+  "retries": 1,
+  "service": "auth-service",
   "status": "active",
-  "notes": "Requires CREATE SCHEMA auth in PostgreSQL before GoTrue can start."
+  "tags": [
+    "gotrue",
+    "auth",
+    "smoke"
+  ],
+  "timeout_ms": 5000,
+  "title": "GoTrue auth service responds on port 9999",
+  "type": "http",
+  "url": "http://localhost:9999/health"
 }

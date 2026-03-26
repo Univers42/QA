@@ -1,24 +1,42 @@
 {
   "id": "INFRA-001",
-  "title": "MongoDB Atlas responds to ping",
+  "author": "vjan-nie",
+  "dependencies": [],
   "description": "Verifies that the QA Hub's MongoDB Atlas instance is reachable and responds to the admin ping command. This is the primary infrastructure smoke test — if Atlas is down, nothing works.",
   "domain": "infra",
-  "type": "bash",
-  "priority": "P0",
-  "tags": ["mongodb", "atlas", "smoke", "infrastructure"],
-  "service": "mongodb-atlas",
-  "environment": ["local", "ci"],
-  "dependencies": [],
+  "environment": [
+    "local",
+    "ci"
+  ],
+  "expected": {
+    "statusCode": 200,
+    "bodyContains": [
+      "ok"
+    ]
+  },
+  "method": "GET",
+  "notes": "Rewritten from HTTP to bash in Roadmap 4. Atlas replaced local Docker MongoDB as the sole operational backend.",
+  "phase": "phase-0",
   "preconditions": [
     "MONGO_URI_ATLAS is set in .env",
     "Atlas cluster is reachable from current network"
   ],
-  "script": "cd /home/dlesieur/QA && .venv/bin/python -c \"from core.db import get_db; get_db().command('ping'); print('ok')\"",
+  "priority": "P0",
+  "retries": 1,
+  "service": "mongodb-atlas",
+  "status": "active",
+  "tags": [
+    "mongodb",
+    "atlas",
+    "smoke",
+    "infrastructure"
+  ],
+  "timeout_ms": 5000,
+  "title": "MongoDB Atlas responds to ping",
+  "type": "bash",
+  "url": "mongodb://localhost:27017",
   "expected_exit_code": 0,
   "expected_output": "ok",
-  "timeout_seconds": 10,
-  "author": "vjan-nie",
-  "phase": "phase-0",
-  "status": "active",
-  "notes": "Rewritten from HTTP to bash in Roadmap 4. Atlas replaced local Docker MongoDB as the sole operational backend."
+  "script": "cd /home/dlesieur/QA && .venv/bin/python -c \"from core.db import get_db; get_db().command('ping'); print('ok')\"",
+  "timeout_seconds": 10
 }

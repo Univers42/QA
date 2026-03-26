@@ -1,21 +1,33 @@
 {
   "id": "INFRA-004",
-  "title": "PostgREST dynamic API responds on port 3000",
+  "author": "vjan-nie",
+  "dependencies": [
+    "postgres"
+  ],
   "description": "Verifies PostgREST is reachable and connected to PostgreSQL.",
   "domain": "infra",
-  "type": "http",
-  "priority": "P0",
-  "tags": ["postgrest", "api", "smoke"],
-  "service": "dynamic-api",
-  "environment": ["local"],
-  "dependencies": ["postgres"],
-  "preconditions": ["mini-baas-infra services running"],
+  "environment": [
+    "local"
+  ],
   "expected": {
     "statusCode": 200
   },
-  "url": "http://localhost:3000/",
   "method": "GET",
-  "author": "vjan-nie",
   "phase": "phase-0",
-  "status": "active"
+  "preconditions": [
+    "mini-baas-infra services running"
+  ],
+  "priority": "P0",
+  "retries": 1,
+  "service": "dynamic-api",
+  "status": "active",
+  "tags": [
+    "postgrest",
+    "api",
+    "smoke"
+  ],
+  "timeout_ms": 5000,
+  "title": "PostgREST dynamic API responds on port 3000",
+  "type": "http",
+  "url": "http://localhost:3000/"
 }

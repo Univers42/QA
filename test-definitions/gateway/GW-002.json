@@ -1,0 +1,37 @@
+{
+  "id": "GW-002",
+  "author": "vjan-nie",
+  "dependencies": [
+    "kong",
+    "redis"
+  ],
+  "description": "Send requests above the rate limit threshold to Kong auth route. Must return 429 Too Many Requests. Requires multiple sequential HTTP calls — cannot be verified by a single request.",
+  "domain": "gateway",
+  "environment": [
+    "local"
+  ],
+  "expected": {
+    "statusCode": 429
+  },
+  "method": "GET",
+  "notes": "Requires runner support for repeated requests (sequence executor). Until then, verify manually or convert to bash test with a curl loop.",
+  "phase": "phase-0",
+  "preconditions": [
+    "Kong running on :8000",
+    "Rate limiting plugin configured on auth route",
+    "Redis running on :6379"
+  ],
+  "priority": "P1",
+  "retries": 1,
+  "service": "api-gateway",
+  "status": "draft",
+  "tags": [
+    "kong",
+    "rate-limiting",
+    "security"
+  ],
+  "timeout_ms": 5000,
+  "title": "Kong rate limiting returns 429 after threshold exceeded",
+  "type": "manual",
+  "url": "http://localhost:8000/auth/health"
+}

@@ -1,22 +1,32 @@
 {
   "id": "INFRA-002",
-  "title": "Kong API gateway responds on port 8000",
+  "author": "vjan-nie",
+  "dependencies": [],
   "description": "Verifies Kong proxy is reachable. All client traffic passes through Kong — if this fails, nothing works.",
   "domain": "infra",
-  "type": "http",
-  "priority": "P0",
-  "tags": ["kong", "gateway", "smoke"],
-  "service": "api-gateway",
-  "environment": ["local"],
-  "dependencies": [],
-  "preconditions": ["Kong added to docker-compose and running"],
+  "environment": [
+    "local"
+  ],
   "expected": {
     "statusCode": 200
   },
-  "url": "http://localhost:8000/",
   "method": "GET",
-  "author": "vjan-nie",
+  "notes": "Set active once Kong is added to mini-baas-infra docker-compose.",
   "phase": "phase-0",
+  "preconditions": [
+    "Kong added to docker-compose and running"
+  ],
+  "priority": "P0",
+  "retries": 1,
+  "service": "api-gateway",
   "status": "draft",
-  "notes": "Set active once Kong is added to mini-baas-infra docker-compose."
+  "tags": [
+    "kong",
+    "gateway",
+    "smoke"
+  ],
+  "timeout_ms": 5000,
+  "title": "Kong API gateway responds on port 8000",
+  "type": "http",
+  "url": "http://localhost:8000/"
 }

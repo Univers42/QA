@@ -54,22 +54,18 @@ if [ "${CURRENT_BRANCH}" = "main" ]; then
     if [ -n "${STAGED_PY}" ] && [ -x ".venv/bin/ruff" ]; then
         log_debug "Running ruff linter on staged Python files..."
 
-        # Run ruff check on staged files only
-        RUFF_OUTPUT=$(.venv/bin/ruff check --no-fix ${STAGED_PY} 2>&1 || true)
-
-        if [ -n "${RUFF_OUTPUT}" ]; then
-            LINT_ERRORS=$(echo "${RUFF_OUTPUT}" | grep -cE "^.+\.py:" || echo "0")
-            log_error "Ruff found ${LINT_ERRORS} issue(s):"
+        if .venv/bin/ruff check --no-fix ${STAGED_PY} > /dev/null 2>&1; then
+            log_success "Ruff lint passed (PEP 8 compliant)"
+        else
+            log_error "Ruff found issues:"
             echo ""
-            echo "${RUFF_OUTPUT}" | while IFS= read -r line; do
+            .venv/bin/ruff check --no-fix ${STAGED_PY} 2>&1 | while IFS= read -r line; do
                 echo -e "    ${_D}${line}${_N}"
             done
             echo ""
             log_example "Auto-fix: .venv/bin/ruff check --fix core/ runner/ api/ cli/"
             log_example "Format:   .venv/bin/ruff format core/ runner/ api/ cli/"
             ERRORS=$((ERRORS + 1))
-        else
-            log_success "Ruff lint passed (PEP 8 compliant)"
         fi
     elif [ -n "${STAGED_PY}" ]; then
         log_warn "Ruff not installed — skipping PEP 8 check (run: make install)"
