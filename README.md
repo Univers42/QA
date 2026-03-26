@@ -2,7 +2,7 @@
 
 *QA infrastructure for the Prismatica / ft_transcendence project — by Univers42, 2026.*
 
-prismatica-qa is the dedicated QA repository for [ft_transcendence](https://github.com/Univers42/transcendence). It implements a **Data-Driven Automation (DDA)** strategy: tests are defined as JSON documents, validated with Pydantic, stored in MongoDB Atlas, executed by a Python runner, and exposed through a FastAPI REST API. A React dashboard (built with libcss) and a CLI (`pqa`) both consume that API. No test framework lock-in. No hardcoded assertions. Tests are data.
+prismatica-qa is the dedicated QA repository for [ft_transcendence](https://github.com/Univers42/transcendence). It implements a **Data-Driven Automation (DDA)** strategy: tests are defined as JSON documents, validated with Pydantic, stored in MongoDB Atlas, executed by a Python runner, and exposed through a FastAPI REST API. A CLI (`pqa`) provides guided test creation and management. A React dashboard (built with libcss) is under development. No test framework lock-in. No hardcoded assertions. Tests are data.
 
 ---
 
@@ -13,9 +13,13 @@ prismatica-qa is the dedicated QA repository for [ft_transcendence](https://gith
 - [Test Domains](#test-domains)
 - [How to Add a Test](#how-to-add-a-test)
 - [Running Tests](#running-tests)
+- [All Commands](#all-commands)
 - [API Reference](#api-reference)
+- [Code Quality](#code-quality)
+- [Git Hooks](#git-hooks)
 - [Dashboard](#dashboard)
 - [CI Integration](#ci-integration)
+- [Documentation](#documentation)
 - [Bibliography](#bibliography)
 - [Use of AI](#use-of-ai)
 
@@ -31,29 +35,15 @@ cd QA
 make
 ```
 
-`make` verifies Python, creates a virtual environment, installs all dependencies, and registers the `pqa` CLI. Then configure your Atlas connection:
+`make` verifies Python, creates a virtual environment, installs all dependencies, registers the `pqa` CLI, and installs git hooks. Then configure your Atlas connection:
 
 ```bash
-nano .env                          # set MONGO_URI_ATLAS with your Atlas connection string
-.venv/bin/python scripts/verify_setup.py   # confirm Atlas connects
-make migrate                       # load test-definitions/ into Atlas (run once)
+nano .env                                      # set MONGO_URI_ATLAS
+.venv/bin/python scripts/verify_setup.py       # confirm Atlas connects
+make migrate                                   # load test-definitions/ into Atlas (once)
+make list                                      # see all tests
+make test                                      # run active tests
 ```
-
-| Command | Description |
-|---------|-------------|
-| `make` | Full setup: check Python, create venv, install deps |
-| `make api` | Start FastAPI server on `:8000` (Swagger UI at `/docs`) |
-| `make test` | Run all active tests |
-| `make test DOMAIN=auth` | Run tests for a specific domain |
-| `make test PRIORITY=P0` | Run only P0 (blocking) tests |
-| `make list` | List all test definitions from Atlas |
-| `make migrate` | Load JSON test definitions into Atlas (idempotent) |
-| `make export` | Export tests from Atlas back to JSON files |
-| `make dashboard` | Start React dashboard on `:5173` |
-| `make clean` | Remove venv and caches |
-| `make help` | Show all available commands |
-
-The services under test (Kong, GoTrue, PostgREST, etc.) must be running in `mini-baas-infra` before executing tests. This repo only needs an Atlas connection — it calls the other services by URL.
 
 ---
 
@@ -61,43 +51,42 @@ The services under test (Kong, GoTrue, PostgREST, etc.) must be running in `mini
 
 ```mermaid
 graph TB
-    subgraph CLIENTS["Clients — how humans interact"]
-        CLI["CLI · pqa test run / list / add"]
-        DASHBOARD["Dashboard · React + libcss · :5173"]
+    subgraph CLIENTS["Clients"]
+        CLI["CLI · pqa<br/>add · edit · list · run · export · delete"]
+        DASHBOARD["Dashboard · React + libcss<br/>:5173 (under development)"]
     end
 
     subgraph API_LAYER["API layer"]
         API["FastAPI · :8000<br/>REST + WebSocket"]
     end
 
-    subgraph CORE["Core — business logic"]
+    subgraph CORE["Core"]
         SCHEMA["Pydantic v2 · schema validation"]
         RUNNER["Runner · httpx async + subprocess"]
-        EXPORT["git_export · JSON ↔ disk"]
+        EXPORT["git_export · JSON to disk"]
     end
 
     subgraph DATA["Data"]
-        ATLAS[("MongoDB Atlas · test_hub<br/>tests + results collections")]
-        JSON["test-definitions/*.json<br/>git · source of truth for history"]
+        ATLAS[("MongoDB Atlas · test_hub<br/>tests + results")]
+        JSON["test-definitions/*.json<br/>git history"]
     end
 
-    subgraph SERVICES["Services under test · mini-baas-infra"]
-        KONG["Kong · :8000"]
+    subgraph SERVICES["Services under test"]
         GOTRUE["GoTrue · :9999"]
         POSTGREST["PostgREST · :3000"]
-        OTHER["Realtime · MinIO · Frontend"]
+        MINIO["MinIO · :9000"]
+        OTHER["Kong · Realtime"]
     end
 
-    CLI -->|"HTTP / direct"| API
-    DASHBOARD -->|"HTTP + WebSocket"| API
+    CLI -->|"direct (pymongo)"| ATLAS
+    CLI -->|"executes"| RUNNER
+    DASHBOARD -->|"HTTP + WS"| API
     API --> SCHEMA
     API --> RUNNER
     API --> EXPORT
-    SCHEMA --> ATLAS
-    RUNNER -->|"HTTP calls"| KONG
-    RUNNER -->|"HTTP calls"| GOTRUE
-    RUNNER -->|"HTTP calls"| POSTGREST
-    RUNNER -->|"HTTP calls"| OTHER
+    RUNNER -->|"HTTP"| GOTRUE
+    RUNNER -->|"HTTP"| POSTGREST
+    RUNNER -->|"HTTP"| MINIO
     RUNNER --> ATLAS
     EXPORT --> JSON
 
@@ -112,154 +101,84 @@ graph TB
 
 | Layer | What lives here | Technology |
 |-------|----------------|------------|
-| **Core** | Business logic — schema validation, test execution, result persistence, git export | Python · Pydantic v2 · httpx · pymongo |
-| **API** | REST interface — exposes the core as HTTP endpoints + WebSocket for live execution | FastAPI · uvicorn |
-| **Clients** | How humans interact — terminal CLI and web dashboard | typer + Rich (CLI) · React + libcss (dashboard) |
+| **Core** | Schema validation, test execution, result persistence, git export | Python · Pydantic v2 · httpx · pymongo |
+| **API** | REST endpoints + WebSocket for live execution | FastAPI · uvicorn |
+| **Clients** | Terminal CLI and web dashboard | typer + Rich (CLI) · React + libcss (dashboard) |
 
 ### Repository structure
 
 ```
 prismatica-qa/
-├── core/                          # Business logic (no HTTP, no UI)
+├── core/                          # Business logic
 │   ├── db.py                      # Atlas connection (pymongo)
-│   ├── schema.py                  # Pydantic v2 models: HttpTest, BashTest, ManualTest
-│   └── git_export.py              # Write tests to test-definitions/ as JSON
+│   ├── schema.py                  # Pydantic v2: HttpTest, BashTest, ManualTest
+│   └── git_export.py              # Write tests as JSON to disk
 ├── runner/                        # Test execution engine
-│   ├── executor.py                # HTTP test executor (httpx async)
-│   ├── bash_executor.py           # Shell command executor (subprocess)
+│   ├── executor.py                # HTTP executor (httpx async)
+│   ├── bash_executor.py           # Shell command executor
 │   ├── results.py                 # Persist results to Atlas
-│   └── ci.py                      # Minimal CI runner (no API dependency)
+│   └── ci.py                      # Minimal CI runner
 ├── api/                           # FastAPI REST API
-│   ├── main.py                    # App entrypoint + CORS
-│   ├── deps.py                    # Shared dependencies
-│   └── routers/
-│       ├── tests.py               # CRUD: GET/POST/PATCH/DELETE /tests
-│       ├── run.py                 # POST /tests/run + WebSocket /ws/run
-│       └── results.py             # GET /results + /results/summary
+│   ├── main.py                    # App + CORS
+│   └── routers/                   # tests.py · run.py · results.py
 ├── cli/                           # pqa CLI (typer + Rich)
-│   ├── main.py                    # Entrypoint: pqa test <command>
-│   └── commands/
-│       ├── list_cmd.py            # pqa test list
-│       └── run_cmd.py             # pqa test run
-├── dashboard/                     # React + libcss (Phase 6)
-├── test-definitions/              # Source of truth for history (committed to git)
-│   ├── auth/                      # AUTH-NNN tests
-│   ├── gw/                        # GW-NNN tests
-│   ├── infra/                     # INFRA-NNN tests
-│   └── ...                        # api, realtime, storage, ui, schema
-├── scripts/
-│   ├── verify_setup.py            # Confirm Atlas connection works
-│   └── migrate_v1_to_v2.py        # One-time migration: JSON → Atlas
-├── docs/
-│   ├── how-to-add-a-test.md       # Step-by-step guide
-│   ├── test-template.json         # Reference template
-│   └── strategy/                  # Roadmaps 0–4
-├── requirements.txt               # Python dependencies
-├── pyproject.toml                 # pqa entry point + project metadata
-├── Makefile                       # CLI interface for all operations
-└── .env.example                   # MONGO_URI_ATLAS + service URLs
+│   ├── main.py                    # Entrypoint
+│   └── commands/                  # add · edit · delete · export · list · run
+├── vendor/hooks/                  # Git hooks
+│   ├── pre-commit                 # File validation + ruff on main
+│   ├── commit-msg                 # Conventional Commits
+│   └── pre-push                   # Commit message validation
+├── dashboard/                     # React + libcss (under development)
+├── test-definitions/              # JSON source of truth (git)
+├── scripts/                       # verify_setup.py · migrate_v1_to_v2.py
+├── docs/                          # Guides + roadmaps
+├── requirements.txt
+├── pyproject.toml                 # pqa entry point + ruff config
+├── Makefile
+└── .env.example
 ```
-
-### Data flow
-
-```
-test-definitions/*.json                          Atlas (test_hub)
-  │                                                │
-  │  make migrate                                  │  pqa test list / run
-  │  (one-time: JSON → Atlas)                      │  (reads from Atlas)
-  │                                                │
-  └──────────────► tests collection ◄──────────────┘
-                        │
-                        │  pqa test run / make test
-                        ▼
-                   Runner (httpx)
-                        │
-                        │  HTTP calls to services
-                        ▼
-                   Services under test
-                        │
-                        │  response
-                        ▼
-                   results collection ──► Dashboard / CLI table
-```
-
-**Key principle:** JSON files in git are the historical source of truth. Atlas is the operational source of truth. They store different things — definitions vs execution state — and do not need to be synchronised.
 
 ---
 
 ## Test Domains
 
-Each test belongs to one domain. The domain determines the ID prefix and which service is under test.
-
 | Domain | Prefix | Service under test |
 |--------|--------|--------------------|
-| `auth` | `AUTH-` | GoTrue — authentication, OAuth, JWT, sessions |
-| `gateway` | `GW-` | Kong — routing, rate limiting, CORS, JWT validation |
+| `auth` | `AUTH-` | GoTrue — login, OAuth, JWT, sessions |
+| `gateway` | `GW-` | Kong — routing, rate limiting, CORS |
 | `schema` | `SCH-` | schema-service — DDL lifecycle, collections, fields |
-| `api` | `API-` | PostgREST — endpoints, RLS, filters, aggregations |
+| `api` | `API-` | PostgREST or QA API — endpoints, filters, RLS |
 | `realtime` | `RT-` | Supabase Realtime — WebSocket, subscriptions |
 | `storage` | `STG-` | MinIO — presigned URLs, buckets, file upload |
 | `ui` | `UI-` | React frontend — components, hooks, stores |
-| `infra` | `INFRA-` | Docker Compose, K8s, health checks |
+| `infra` | `INFRA-` | Docker, health checks, Atlas, infrastructure |
 
 ### Priority levels
 
 | Priority | Meaning | CI behaviour |
 |----------|---------|--------------|
-| `P0` | Blocking — system cannot function | Blocks merge if failing |
-| `P1` | Critical — major feature broken | Blocks merge if failing |
-| `P2` | Important — degraded experience | Warning only |
+| `P0` | System cannot function | Blocks merge |
+| `P1` | Critical feature broken | Blocks merge |
+| `P2` | Degraded experience | Warning only |
 | `P3` | Nice to have | Report only |
-
-### Test types
-
-| Type | Executor | Use case |
-|------|----------|----------|
-| `http` | `runner/executor.py` | API calls — check status code, body content, JWT claims |
-| `bash` | `runner/bash_executor.py` | Shell commands — check exit code, stdout content |
-| `manual` | None (skipped) | Human verification — specifications not yet automated |
 
 ---
 
 ## How to Add a Test
 
-### Option A — Via the API (recommended)
-
-With the API running (`make api`), send a POST request:
-
 ```bash
-curl -X POST http://localhost:8000/tests \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "AUTH-004",
-    "title": "Token refresh returns new access_token",
-    "domain": "auth",
-    "priority": "P1",
-    "status": "draft",
-    "type": "http",
-    "url": "http://localhost:9999/auth/v1/token?grant_type=refresh_token",
-    "method": "POST",
-    "expected": {"statusCode": 200, "bodyContains": ["access_token"]}
-  }'
+make add                        # interactive mode with guided prompts
 ```
 
-The API validates the test with Pydantic, writes it to Atlas, and exports the JSON file to `test-definitions/auth/AUTH-004.json`. Commit the file to git.
-
-### Option B — Via the dashboard (once available)
-
-Open the dashboard, click "Add Test", fill in the form, and submit. The dashboard calls the same API endpoint.
-
-### Option C — Edit JSON directly
-
-Copy the template, fill in the fields, and run the migration:
+Or in one line:
 
 ```bash
-cp docs/test-template.json test-definitions/auth/AUTH-004.json
-# edit the file
-make migrate
+.venv/bin/pqa test add --quick \
+  --id AUTH-005 --title "Signup creates account" \
+  --domain auth --priority P1 --type http \
+  --url "http://localhost:9999/auth/v1/signup" \
+  --method POST --expected-status 200
 ```
-
-Required fields: `id`, `title`, `domain`, `priority`, `status`. For HTTP tests, also: `type`, `url`, `method`, `expected`.
 
 Full guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)
 
@@ -268,72 +187,96 @@ Full guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)
 ## Running Tests
 
 ```bash
-# Full suite (all active tests)
-make test
-
-# By domain
-make test DOMAIN=auth
-make test DOMAIN=infra
-
-# By priority
-make test PRIORITY=P0
-
-# Combined
-make test DOMAIN=auth PRIORITY=P1
-
-# List without executing
-make list
+make test                       # all active tests
+make test DOMAIN=auth           # only auth
+make test PRIORITY=P0           # only blocking
+make test ID=AUTH-003           # one test
 ```
 
-The runner reads active test definitions from Atlas, executes the HTTP or bash calls, persists results back to Atlas, and prints a pass/fail table in the terminal. Exit code is 1 if any test fails — CI compatible.
+---
+
+## All Commands
+
+| Command | Description |
+|---------|-------------|
+| `make` | Full setup (install + hooks) |
+| `make api` | Start FastAPI on :8000 (Swagger at /docs) |
+| `make test` | Run all active tests |
+| `make test DOMAIN=auth` | Run auth tests only |
+| `make test PRIORITY=P0` | Run P0 tests only |
+| `make test ID=AUTH-003` | Run a single test |
+| `make list` | List all tests |
+| `make add` | Create a test (interactive) |
+| `make edit ID=AUTH-003` | Edit a test |
+| `make delete ID=AUTH-003` | Deprecate a test |
+| `make export` | Export Atlas to JSON files |
+| `make migrate` | Load JSON files into Atlas |
+| `make lint` | Check PEP 8 compliance |
+| `make fix` | Auto-fix lint issues |
+| `make format` | Format code + fix |
+| `make hooks` | Install git hooks |
+| `make clean` | Remove venv + caches |
+| `make re` | Full rebuild |
+| `make help` | Show categorised help |
 
 ---
 
 ## API Reference
 
-Start the API with `make api`. Interactive documentation is auto-generated at:
-
-- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
-
-### Endpoints
+Start with `make api`. Swagger UI at [http://localhost:8000/docs](http://localhost:8000/docs).
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Health check |
-| `GET` | `/tests` | List tests (query: `domain`, `priority`, `status`) |
-| `GET` | `/tests/{id}` | Get a test by ID |
-| `POST` | `/tests` | Create a test (validates + exports JSON) |
-| `PATCH` | `/tests/{id}` | Update a test |
-| `DELETE` | `/tests/{id}` | Soft-delete (set status to deprecated) |
-| `POST` | `/tests/run` | Execute tests (query: `domain`, `priority`, `id`) |
-| `GET` | `/results` | List execution results (query: `test_id`, `passed`, `limit`) |
-| `GET` | `/results/summary` | Aggregate pass/fail by domain |
-| `WS` | `/ws/run` | WebSocket — stream results test by test in real time |
+| `GET` | `/tests` | List tests (filters: `domain`, `priority`, `status`) |
+| `GET` | `/tests/{id}` | Get test by ID |
+| `POST` | `/tests` | Create test (validates + exports JSON) |
+| `PATCH` | `/tests/{id}` | Update test |
+| `DELETE` | `/tests/{id}` | Soft-delete (deprecated) |
+| `POST` | `/tests/run` | Execute tests (filters: `domain`, `priority`, `id`) |
+| `GET` | `/results` | Execution history |
+| `GET` | `/results/summary` | Pass/fail counts by domain |
+| `WS` | `/ws/run` | Stream results in real time |
+
+---
+
+## Code Quality
+
+PEP 8 enforced by [ruff](https://docs.astral.sh/ruff/). On `main`, the pre-commit hook blocks non-compliant code. On feature branches, ruff is not enforced.
+
+```bash
+make lint                       # check (read-only)
+make fix                        # auto-fix
+make format                     # format + fix
+```
+
+---
+
+## Git Hooks
+
+Installed automatically by `make`. Same Conventional Commits format as transcendence.
+
+| Hook | What it does |
+|------|-------------|
+| `pre-commit` | Blocks merge markers, sensitive files, large files, cache files. Runs ruff on main. |
+| `commit-msg` | Enforces `type(scope): Description` (25-170 chars, uppercase, no WIP/TODO) |
+| `pre-push` | Validates commit messages of new commits |
+
+Bypass: `SKIP_PRE_COMMIT=1`, `SKIP_COMMIT_MSG=1`, `SKIP_PRE_PUSH=1`
 
 ---
 
 ## Dashboard
 
-*Phase 6 — under development.*
+*Under development — Phase 6.*
 
-The dashboard is a React application built with [libcss](https://github.com/Univers42/transcendence) components (Button, FormField, ThemeToggle, SplitLayout) that consumes the FastAPI endpoints. It provides:
-
-- **Test list:** table with sorting, filtering by domain/priority/status, and per-row Run button
-- **Live execution:** WebSocket connection showing results as they arrive
-- **Test form:** create and edit tests through a guided form
-- **Result history:** execution timeline per test with pass/fail trends
-
-Start with `make dashboard` once the feature is implemented.
+React application with libcss components consuming the FastAPI endpoints. Planned: test list with filters, live WebSocket execution, guided test form, result history.
 
 ---
 
 ## CI Integration
 
-This repo is called from the CI pipelines of `transcendence` and `mini-baas-infra` — it is not added as a submodule. Each pipeline clones `QA` and runs the smoke suite using the CI runner (no API server needed):
-
 ```yaml
-# Example: in transcendence/.github/workflows/ci.yml
 - name: Run QA smoke tests
   run: |
     git clone https://github.com/Univers42/QA.git
@@ -342,13 +285,18 @@ This repo is called from the CI pipelines of `transcendence` and `mini-baas-infr
     python -m runner.ci --priority P0
   env:
     MONGO_URI_ATLAS: ${{ secrets.MONGO_URI_ATLAS }}
-    GOTRUE_URL: http://localhost:9999
-    POSTGREST_URL: http://localhost:3000
 ```
 
-The CI runner (`runner/ci.py`) imports the core directly — it does not start a FastAPI server. This keeps CI fast and dependency-light.
+---
 
-Atlas M0 (free tier) is used as the shared MongoDB backend so results from all contributors and CI runs are visible in one place.
+## Documentation
+
+| Document | What it covers |
+|----------|---------------|
+| [docs/usage-guide.md](docs/usage-guide.md) | Quick reference: commands, tables, troubleshooting |
+| [docs/python-guide.md](docs/python-guide.md) | Python onboarding for C/JS developers |
+| [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md) | Step-by-step test authoring |
+| [docs/strategy/](docs/strategy/) | Roadmaps 0-5: architecture decisions and history |
 
 ---
 
@@ -356,31 +304,24 @@ Atlas M0 (free tier) is used as the shared MongoDB backend so results from all c
 
 | Resource | What it informed |
 |----------|-----------------|
-| [FastAPI Documentation](https://fastapi.tiangolo.com/) | REST API design, dependency injection, WebSocket support |
-| [Pydantic v2 Documentation](https://docs.pydantic.dev/) | Schema validation, discriminated unions, model inheritance |
-| [MongoDB pymongo Driver](https://pymongo.readthedocs.io/) | Atlas connection, upsert, aggregation pipeline, TTL indexes |
-| [typer Documentation](https://typer.tiangolo.com/) | CLI framework — subcommands, autocompletion, help generation |
-| [Rich Documentation](https://rich.readthedocs.io/) | Terminal tables, colours, progress bars |
-| [httpx Documentation](https://www.python-httpx.org/) | Async HTTP client for test execution |
-| [The Practical Test Pyramid — Martin Fowler](https://martinfowler.com/articles/practical-test-pyramid.html) | Test type classification and the smoke/contract distinction |
-| [Data-Driven Testing — SmartBear](https://smartbear.com/learn/automated-testing/data-driven-testing/) | DDA philosophy: separating test data from test logic |
-| [Conventional Commits 1.0](https://www.conventionalcommits.org/) | Commit format consistent with `transcendence` |
+| [FastAPI](https://fastapi.tiangolo.com/) | REST API, dependency injection, WebSocket |
+| [Pydantic v2](https://docs.pydantic.dev/) | Schema validation, discriminated unions |
+| [pymongo](https://pymongo.readthedocs.io/) | Atlas connection, TTL indexes |
+| [typer](https://typer.tiangolo.com/) | CLI framework |
+| [Rich](https://rich.readthedocs.io/) | Terminal UI |
+| [Ruff](https://docs.astral.sh/ruff/) | Linter + formatter |
+| [httpx](https://www.python-httpx.org/) | Async HTTP client |
+| [Practical Test Pyramid — Fowler](https://martinfowler.com/articles/practical-test-pyramid.html) | Test classification |
+| [Data-Driven Testing — SmartBear](https://smartbear.com/learn/automated-testing/data-driven-testing/) | DDA philosophy |
+| [Conventional Commits](https://www.conventionalcommits.org/) | Commit format |
 
 ---
 
 ## Use of AI
 
-AI tools were used during development of this repository. Concretely:
-
-- **Architecture decisions** — the DDA approach, repo separation rationale, MongoDB schema design, the three-layer architecture (Core → API → Clients), and the decision to use Atlas as sole operational backend were discussed with Claude and iterated on
-- **Scaffolding** — repository structure, Pydantic models, FastAPI routers, CLI commands, Makefile, migration scripts
-- **Documentation** — this README, `how-to-add-a-test.md`, roadmap documents, inline code comments
-
-What AI did not do: decide which tests to write, define what correct behaviour looks like for each service, configure MongoDB Atlas, or commit anything without being read and understood first. Test definitions — the JSON documents that encode expected behaviour — are written by the team based on the State of the Art document and direct knowledge of the system under test.
+AI tools were used during development. Concretely: architecture decisions, scaffolding, documentation, and the Python onboarding guide were discussed with Claude and iterated on. What AI did not do: decide which tests to write, define correct behaviour for each service, configure Atlas, or commit anything without being read and understood first. Test definitions are written by the team based on direct knowledge of the system under test.
 
 ---
 
-*Detailed test authoring guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)*
-*Architecture and session history: [docs/strategy/](docs/strategy/)*
-*Main project repository: [Univers42/transcendence](https://github.com/Univers42/transcendence)*
-*Infrastructure repository: [Univers42/mini-baas-infra](https://github.com/Univers42/mini-baas-infra)*
+*Quick reference: [docs/usage-guide.md](docs/usage-guide.md) · Test authoring: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md) · Python guide: [docs/python-guide.md](docs/python-guide.md)*
+*Main project: [Univers42/transcendence](https://github.com/Univers42/transcendence) · Infrastructure: [Univers42/mini-baas-infra](https://github.com/Univers42/mini-baas-infra)*

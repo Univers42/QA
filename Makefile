@@ -3,17 +3,18 @@
 #                                                         :::      ::::::::    #
 #    Makefile                                           :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: vjan-nie <vjan-nie@student.42madrid.com    +#+  +:+       +#+         #
+#    By: dlesieur <dlesieur@student.42madrid.com    +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/03/24 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/03/26 16:47:55 by vjan-nie         ###   ########.fr        #
+#    Updated: 2026/03/26 00:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 SHELL := /bin/bash
 .SHELLFLAGS := -ec
 
-.PHONY: help all install api test list clean preflight check-python check-env venv hooks lint format
+.PHONY: help all install api test list add export lint fix format clean fclean \
+        preflight check-python check-env venv hooks migrate dashboard re
 
 .DEFAULT_GOAL := all
 
@@ -23,10 +24,16 @@ PYTHON     := $(VENV)/bin/python
 PIP        := $(VENV)/bin/pip
 PQA        := $(VENV)/bin/pqa
 UVICORN    := $(VENV)/bin/uvicorn
+RUFF       := $(VENV)/bin/ruff
 
 DOMAIN    ?=
 PRIORITY  ?=
+STATUS    ?=
 ENV       ?= local
+ID        ?=
+
+# Source directories for linting/formatting
+SRC_DIRS  := core/ runner/ api/ cli/ scripts/
 
 # Colors
 BLUE    := \033[0;34m
@@ -134,31 +141,69 @@ all: banner preflight install hooks  ## 🚀 Full setup (default)
 	@echo -e "  $(DIM)  1. Edit .env with your Atlas password$(NC)"
 	@echo -e "  $(DIM)  2. make api    — start the API server$(NC)"
 	@echo -e "  $(DIM)  3. make test   — run all active tests$(NC)"
+	@echo -e "  $(DIM)  4. make help   — see all available commands$(NC)"
 	@echo ""
+
+re: fclean all  ## 🔄 Full rebuild (clean + setup)
 
 banner:
 	$(BANNER)
 
 # ============================================
+#  🔒 GIT HOOKS
+# ============================================
+
+hooks:  ## 🔒 Install git hooks (conventional commits, branch protection)
+	@bash vendor/hooks/install.sh
+
+# ============================================
 #  🚀 API SERVER
 # ============================================
 
-api: install  ## 🚀 Start FastAPI server (port 8000)
+api: install  ## 🚀 Start FastAPI server (port 8000, Swagger at /docs)
 	@$(call step,$(BLUE)ℹ,Starting Prismatica QA API on :8000...)
+	@echo -e "  $(DIM)  Swagger UI:  http://localhost:8000/docs$(NC)"
+	@echo -e "  $(DIM)  Health:      http://localhost:8000/$(NC)"
+	@echo ""
 	@$(UVICORN) api.main:app --reload --port 8000
 
 # ============================================
-#  🧪 TEST EXECUTION
+#  🧪 TEST MANAGEMENT & EXECUTION
 # ============================================
 
-test: install  ## 🧪 Run tests (DOMAIN=auth PRIORITY=P0 ENV=local)
+test: install  ## 🧪 Run tests (DOMAIN=auth PRIORITY=P0)
 	@$(call step,$(BLUE)ℹ,Running tests — domain=$(DOMAIN) priority=$(PRIORITY) env=$(ENV)...)
-	@DOMAIN=$(DOMAIN) PRIORITY=$(PRIORITY) TEST_ENV=$(ENV) $(PQA) test run \
+	@$(PQA) test run \
 		$(if $(DOMAIN),--domain $(DOMAIN)) \
+		$(if $(PRIORITY),--priority $(PRIORITY)) \
+		$(if $(ID),--id $(ID))
+
+list: install  ## 📋 List tests (DOMAIN=auth STATUS=active PRIORITY=P0)
+	@$(PQA) test list \
+		$(if $(DOMAIN),--domain $(DOMAIN)) \
+		$(if $(STATUS),--status $(STATUS)) \
 		$(if $(PRIORITY),--priority $(PRIORITY))
 
-list: install  ## 📋 List all tests
-	@$(PQA) test list
+add: install  ## ➕ Create a new test (interactive)
+	@$(PQA) test add
+
+edit: install  ## ✏️  Edit a test (ID=AUTH-003)
+	@if [ -z "$(ID)" ]; then \
+		echo ""; \
+		echo -e "  $(RED)✗  Missing ID.$(NC) Usage: $(BOLD)make edit ID=AUTH-003$(NC)"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@$(PQA) test edit $(ID)
+
+delete: install  ## 🗑️  Deprecate a test (ID=AUTH-003)
+	@if [ -z "$(ID)" ]; then \
+		echo ""; \
+		echo -e "  $(RED)✗  Missing ID.$(NC) Usage: $(BOLD)make delete ID=AUTH-003$(NC)"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@$(PQA) test delete $(ID)
 
 # ============================================
 #  🗄️ DATA MANAGEMENT
@@ -169,8 +214,29 @@ migrate: install  ## 🔄 Migrate v1 JSON tests into Atlas
 	@$(PYTHON) scripts/migrate_v1_to_v2.py
 	@$(call step,$(GREEN)✓,Migration complete)
 
-export: install  ## 📤 Export tests from Atlas to test-definitions/ JSON
-	@$(PQA) test export
+export: install  ## 📤 Export tests from Atlas to JSON (DOMAIN=auth)
+	@$(PQA) test export \
+		$(if $(DOMAIN),--domain $(DOMAIN))
+
+# ============================================
+#  🔍 CODE QUALITY
+# ============================================
+
+lint: install  ## 🔍 Check PEP 8 compliance (ruff)
+	@$(call step,$(BLUE)ℹ,Running ruff linter...)
+	@$(RUFF) check $(SRC_DIRS)
+	@$(call step,$(GREEN)✓,Lint passed — PEP 8 compliant)
+
+fix: install  ## 🔧 Auto-fix lint issues (ruff --fix)
+	@$(call step,$(BLUE)ℹ,Auto-fixing lint issues...)
+	@$(RUFF) check --fix $(SRC_DIRS)
+	@$(call step,$(GREEN)✓,Lint issues fixed)
+
+format: install  ## 🎨 Auto-format code (ruff format + fix)
+	@$(call step,$(BLUE)ℹ,Formatting code...)
+	@$(RUFF) format $(SRC_DIRS)
+	@$(RUFF) check --fix $(SRC_DIRS)
+	@$(call step,$(GREEN)✓,Code formatted)
 
 # ============================================
 #  🌐 DASHBOARD
@@ -185,35 +251,13 @@ dashboard:  ## 🌐 Start React dashboard (port 5173)
 	@cd dashboard && npm run dev
 
 # ============================================
-#  🔒 GIT HOOKS
-# ============================================
-
-hooks:  ## 🔒 Install git hooks (conventional commits, branch protection)
-	@bash hooks/install.sh
-
-# ============================================
-#  🔍 CODE QUALITY
-# ============================================
-
-lint: install  ## 🔍 Check PEP 8 compliance (ruff)
-	@$(call step,$(BLUE)ℹ,Running ruff linter...)
-	@$(VENV)/bin/ruff check core/ runner/ api/ cli/ scripts/
-	@$(call step,$(GREEN)✓,Lint passed — PEP 8 compliant)
-
-format: install  ## 🔍 Auto-format code (ruff)
-	@$(call step,$(BLUE)ℹ,Formatting code...)
-	@$(VENV)/bin/ruff format core/ runner/ api/ cli/ scripts/
-	@$(VENV)/bin/ruff check --fix core/ runner/ api/ cli/ scripts/
-	@$(call step,$(GREEN)✓,Code formatted)
-
-# ============================================
 #  🧹 CLEANUP
 # ============================================
 
 clean:  ## 🧹 Remove venv and caches
 	@$(call step,$(YELLOW)⚠,Cleaning...)
-	@rm -rf $(VENV) __pycache__ core/__pycache__ runner/__pycache__ api/__pycache__ cli/__pycache__
-	@rm -rf *.egg-info .pytest_cache
+	@rm -rf $(VENV) *.egg-info .pytest_cache .ruff_cache
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@$(call step,$(GREEN)✓,Clean)
 
 fclean: clean  ## 🧹 Full clean (venv + dashboard node_modules)
@@ -228,12 +272,37 @@ help:  ## ❓ Show available commands
 	@echo ""
 	@echo -e "$(BOLD)Prismatica QA — Available Commands$(NC)"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-18s$(NC) %s\n", $$1, $$2}'
+	@echo -e "  $(CYAN)Setup & Server$(NC)"
+	@echo -e "  $(GREEN)make$(NC)                  Full setup (install + hooks)"
+	@echo -e "  $(GREEN)make api$(NC)              Start FastAPI on :8000 (Swagger at /docs)"
+	@echo -e "  $(GREEN)make dashboard$(NC)        Start React dashboard on :5173"
 	@echo ""
-	@echo -e "  $(DIM)Examples:$(NC)"
-	@echo -e "  $(DIM)  make test DOMAIN=auth$(NC)"
-	@echo -e "  $(DIM)  make test PRIORITY=P0$(NC)"
-	@echo -e "  $(DIM)  make api$(NC)"
-	@echo -e "  $(DIM)  make dashboard$(NC)"
+	@echo -e "  $(CYAN)Test Management$(NC)"
+	@echo -e "  $(GREEN)make list$(NC)             List all tests from Atlas"
+	@echo -e "  $(GREEN)make list DOMAIN=auth$(NC) List tests filtered by domain"
+	@echo -e "  $(GREEN)make list STATUS=active$(NC) List only active tests"
+	@echo -e "  $(GREEN)make add$(NC)              Create a new test (interactive)"
+	@echo -e "  $(GREEN)make edit ID=AUTH-003$(NC) Edit a test"
+	@echo -e "  $(GREEN)make delete ID=AUTH-003$(NC) Deprecate a test"
+	@echo ""
+	@echo -e "  $(CYAN)Test Execution$(NC)"
+	@echo -e "  $(GREEN)make test$(NC)             Run all active tests"
+	@echo -e "  $(GREEN)make test DOMAIN=auth$(NC) Run auth tests only"
+	@echo -e "  $(GREEN)make test PRIORITY=P0$(NC) Run P0 (blocking) tests only"
+	@echo -e "  $(GREEN)make test ID=AUTH-003$(NC) Run a single test"
+	@echo ""
+	@echo -e "  $(CYAN)Data & Export$(NC)"
+	@echo -e "  $(GREEN)make export$(NC)           Export all tests from Atlas to JSON"
+	@echo -e "  $(GREEN)make export DOMAIN=auth$(NC) Export auth tests only"
+	@echo -e "  $(GREEN)make migrate$(NC)          Load JSON files into Atlas (one-time)"
+	@echo ""
+	@echo -e "  $(CYAN)Code Quality$(NC)"
+	@echo -e "  $(GREEN)make lint$(NC)             Check PEP 8 compliance"
+	@echo -e "  $(GREEN)make fix$(NC)              Auto-fix lint issues"
+	@echo -e "  $(GREEN)make format$(NC)           Format code + fix issues"
+	@echo ""
+	@echo -e "  $(CYAN)Maintenance$(NC)"
+	@echo -e "  $(GREEN)make hooks$(NC)            Install git hooks"
+	@echo -e "  $(GREEN)make clean$(NC)            Remove venv and caches"
+	@echo -e "  $(GREEN)make fclean$(NC)           Full clean (+ dashboard)"
 	@echo ""

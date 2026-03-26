@@ -1,0 +1,427 @@
+# Prismatica QA — Roadmap 5
+
+*CLI complete, code quality enforced, ready for team adoption.*
+
+*March 2026 · Version 1.0 · dlesieur & vjan-nie*
+
+---
+
+## Table of Contents
+
+- [1. What Changed Since Roadmap 4](#1-what-changed-since-roadmap-4)
+- [2. What We Built in This Session](#2-what-we-built-in-this-session)
+- [3. The System Today — Complete Data Flow](#3-the-system-today--complete-data-flow)
+- [4. File by File — What Each New File Does](#4-file-by-file--what-each-new-file-does)
+- [5. Architectural Decisions Made This Session](#5-architectural-decisions-made-this-session)
+- [6. Current State — 14 Tests, 8 Active](#6-current-state--14-tests-8-active)
+- [7. Progress Against Objectives](#7-progress-against-objectives)
+- [8. Next Steps](#8-next-steps)
+
+---
+
+## 1. What Changed Since Roadmap 4
+
+Roadmap 4 delivered the core infrastructure: Python migration, FastAPI API, async runner, Atlas integration, and two CLI commands (list, run). The system could execute tests and persist results, but a developer could not create, edit, or manage tests without manually writing JSON.
+
+This session closed that gap and hardened the repository for team use:
+
+```
+Roadmap 4 state:                     Roadmap 5 state:
+├── pqa test list   ✅                ├── pqa test list    ✅
+├── pqa test run    ✅                ├── pqa test run     ✅
+├── pqa test add    ❌                ├── pqa test add     ✅ (interactive + --quick)
+├── pqa test edit   ❌                ├── pqa test edit    ✅ (diff preview)
+├── pqa test delete ❌                ├── pqa test delete  ✅ (soft delete)
+├── pqa test export ❌                ├── pqa test export  ✅ (diff + --force)
+├── Code quality    ❌                ├── ruff lint/format ✅ (PEP 8)
+├── Git hooks       ❌                ├── Git hooks        ✅ (3 hooks)
+├── Documentation   partial           ├── Documentation    ✅ (5 guides)
+└── Team-ready      ❌                └── Team-ready       ✅
+```
+
+---
+
+## 2. What We Built in This Session
+
+```mermaid
+timeline
+    title Session build sequence
+    CLI Phase 5          : pqa test add (interactive + --quick)
+                         : pqa test export (Atlas → JSON with diff preview)
+                         : pqa test edit (pre-filled fields + diff)
+                         : pqa test delete (soft delete with confirmation)
+    Test definitions     : Updated all 10 tests to v3 schema (type http/bash/manual)
+                         : Rewrote INFRA-001 as bash test (Atlas ping)
+                         : Changed GW-002 to manual (needs sequence executor)
+                         : Added API-001 API-002 API-003 (QA self-tests)
+                         : Fixed git_export to filter None values
+    Code quality         : Added ruff linter + formatter
+                         : Configured PEP 8 rules in pyproject.toml
+                         : Added make lint · make fix · make format
+    Git hooks            : pre-commit — file validation + ruff on main
+                         : commit-msg — Conventional Commits enforcement
+                         : pre-push — commit message validation
+                         : vendor/hooks/install.sh + log_hook.sh
+    Makefile overhaul    : Added make add · edit · delete · fix
+                         : Reorganised make help with categories
+                         : All targets accept filters (DOMAIN= STATUS= ID=)
+                         : make clean now removes .ruff_cache
+    Documentation        : python-guide.md — Python onboarding through repo code
+                         : usage-guide.md — quick reference for daily operations
+                         : Updated how-to-add-a-test.md for v3 schema
+                         : Updated test-template.json with 3 type variants
+                         : Updated README.md for complete v3 architecture
+```
+
+---
+
+## 3. The System Today — Complete Data Flow
+
+### How a developer adds a test (end to end)
+
+```mermaid
+flowchart TD
+    DEV["Developer runs<br/>make add"] --> INTERACTIVE["CLI shows domain table<br/>type table · priority guide"]
+    INTERACTIVE --> PROMPTS["Guided prompts<br/>field by field"]
+    PROMPTS --> PREVIEW["JSON preview<br/>in terminal"]
+    PREVIEW --> CONFIRM{"Confirm?"}
+    CONFIRM -- No --> CANCEL["Cancelled"]
+    CONFIRM -- Yes --> PYDANTIC["Pydantic validates<br/>against schema"]
+    PYDANTIC -- Invalid --> ERROR["Validation error<br/>shown in terminal"]
+    PYDANTIC -- Valid --> ATLAS["Written to<br/>Atlas tests collection"]
+    ATLAS --> EXPORT["Exported to<br/>test-definitions/domain/ID.json"]
+    EXPORT --> GIT["Developer commits<br/>the JSON file"]
+
+    style DEV fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style ATLAS fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style EXPORT fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style GIT fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style ERROR fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style CANCEL fill:#fef3c7,stroke:#d97706,color:#78350f
+```
+
+### How a commit passes through the hooks
+
+```mermaid
+flowchart LR
+    ADD["git add"] --> COMMIT["git commit"]
+    COMMIT --> PRE["pre-commit hook"]
+    PRE --> CHK1{"Merge markers?<br/>Sensitive files?<br/>Large files?<br/>__pycache__?"}
+    CHK1 -- Found --> BLOCK1["❌ Commit blocked"]
+    CHK1 -- Clean --> CHK2{"On main?"}
+    CHK2 -- Yes --> RUFF["ruff check<br/>PEP 8 validation"]
+    CHK2 -- No --> MSG["commit-msg hook"]
+    RUFF -- Errors --> BLOCK2["❌ Commit blocked"]
+    RUFF -- OK --> MSG
+    MSG --> FMT{"type(scope): Desc?<br/>25-170 chars?<br/>Uppercase?<br/>No WIP/TODO?"}
+    FMT -- Invalid --> BLOCK3["❌ Commit rejected"]
+    FMT -- Valid --> OK["✅ Commit created"]
+    OK --> PUSH["git push"]
+    PUSH --> PREPUSH["pre-push hook"]
+    PREPUSH --> MSGCHK["Validates commit<br/>messages of new commits"]
+    MSGCHK --> DONE["✅ Push complete"]
+
+    style BLOCK1 fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style BLOCK2 fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style BLOCK3 fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style OK fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style DONE fill:#dcfce7,stroke:#22c55e,color:#14532d
+```
+
+### All Make targets at a glance
+
+```mermaid
+graph TD
+    subgraph SETUP["Setup"]
+        MAKE["make"]
+        INSTALL["make install"]
+        HOOKS["make hooks"]
+    end
+
+    subgraph SERVE["Servers"]
+        API["make api<br/>:8000"]
+        DASH["make dashboard<br/>:5173 (Phase 6)"]
+    end
+
+    subgraph TESTS["Test Management"]
+        LIST["make list"]
+        ADD["make add"]
+        EDIT["make edit ID=X"]
+        DELETE["make delete ID=X"]
+    end
+
+    subgraph EXEC["Execution"]
+        TEST["make test"]
+        TESTD["make test DOMAIN=auth"]
+        TESTP["make test PRIORITY=P0"]
+        TESTI["make test ID=AUTH-003"]
+    end
+
+    subgraph DATA["Data"]
+        EXPORT["make export"]
+        MIGRATE["make migrate"]
+    end
+
+    subgraph QUALITY["Code Quality"]
+        LINT["make lint"]
+        FIX["make fix"]
+        FORMAT["make format"]
+    end
+
+    MAKE --> INSTALL
+    INSTALL --> HOOKS
+
+    style SETUP fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style SERVE fill:#ede9fe,stroke:#7c3aed,color:#3b1f6e
+    style TESTS fill:#fef3c7,stroke:#d97706,color:#78350f
+    style EXEC fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style DATA fill:#f8fafc,stroke:#cbd5e1,color:#1e293b
+    style QUALITY fill:#fce7f3,stroke:#db2777,color:#831843
+```
+
+---
+
+## 4. File by File — What Each New File Does
+
+### CLI commands (`cli/commands/`)
+
+**`add_cmd.py`** — The most complex CLI command. Two modes: interactive (default) and quick (`--quick`). Interactive mode shows Rich tables for domain selection, type selection, and priority guide before each prompt. Validates with Pydantic, writes to Atlas, exports JSON to disk, and suggests the git commit command.
+
+**`export_cmd.py`** — Reads all tests from Atlas and writes them to `test-definitions/` as JSON. Compares existing files on disk with Atlas content and shows a diff preview before overwriting. `--force` skips confirmation. `--domain` filters by domain.
+
+**`edit_cmd.py`** — Loads a test from Atlas, pre-fills all current values in the prompts (Enter keeps current, `-` clears), shows a diff of changes, and asks for confirmation before saving. Re-validates with Pydantic after edits.
+
+**`delete_cmd.py`** — Soft delete: sets status to `deprecated` in Atlas and updates the JSON file. Never physically deletes — everything stays for traceability.
+
+### Code quality
+
+**`pyproject.toml` `[tool.ruff]` section** — Configures ruff with line-length 100, PEP 8 rules (E, W), pyflakes (F), import sorting (I), pyupgrade (UP), bugbear (B), and simplify (SIM). Exception for B008 (FastAPI's `Depends()` pattern).
+
+### Git hooks (`vendor/hooks/`)
+
+**`pre-commit`** — Validates staged files: merge markers (blocks), sensitive files like `.env` (blocks), files >500KB (blocks), `__pycache__` (blocks), `breakpoint()`/`pdb` (warns), bare `print()` outside CLI/scripts (warns). On the `main` branch only: runs `ruff check` (blocks on PEP 8 errors) and `ruff format --check` (warns on formatting issues).
+
+**`commit-msg`** — Enforces Conventional Commits: `type(scope): Description`. Validates format, description length (25-170 chars), uppercase first letter, no trailing period, no forbidden words (WIP, TODO, FIXME, etc.). Same rules as the transcendence repository for cross-repo consistency.
+
+**`pre-push`** — Validates commit messages of new commits being pushed. Warns on non-compliant messages and asks for confirmation.
+
+**`log_hook.sh`** — Shared logging utilities (colours, icons, persistent log file at `.git/hook-logs/hook.log`).
+
+**`install.sh`** — Sets `core.hooksPath` to `vendor/hooks/` and verifies permissions.
+
+### Documentation (`docs/`)
+
+**`python-guide.md`** — 12-section Python onboarding guide teaching the language through real code from this repo. Covers project infrastructure files, fundamentals, imports, type hints, Pydantic, async/await, FastAPI, pymongo, patterns, and gotchas from C/JS.
+
+**`usage-guide.md`** — Quick reference for daily operations: setup, commands, domain/priority/type tables, test lifecycle, commit format, troubleshooting, and all Make commands at a glance.
+
+**`how-to-add-a-test.md`** — Updated for v3: three ways to add tests (API, CLI, JSON), three test types (http, bash, manual), Pydantic validation, complete examples for each type.
+
+**`test-template.json`** — Updated with three type blocks (http, bash, manual) as separate sections with comments.
+
+### Fixes
+
+**`core/git_export.py`** — Now filters `None` values at both the top level and inside nested dicts (like `expected`). This prevents `"jwtClaims": null` from appearing in exported JSON files.
+
+**`core/schema.py`** — Enums changed from `(str, Enum)` to `StrEnum` (Python 3.11+ modern syntax, fixes MRO conflict).
+
+---
+
+## 5. Architectural Decisions Made This Session
+
+### Decision 1 — Ruff lint enforced only on main
+
+**Context:** PEP 8 enforcement is valuable but can block developers who are experimenting on feature branches.
+
+**Decision:** The pre-commit hook runs `ruff check` only when the current branch is `main`. On any other branch, ruff is skipped silently. `make lint` and `make format` are always available manually.
+
+**Consequence:** Developers can commit freely on feature branches. When they merge to main (or commit directly), PEP 8 compliance is enforced. This matches the "experiment freely, ship cleanly" philosophy.
+
+### Decision 2 — CLI talks to Atlas directly, not through the API
+
+**Context:** Roadmap 3 originally planned the CLI as a pure HTTP client of the API.
+
+**Decision (carried from Roadmap 4, now confirmed):** The CLI imports `core/db.py` and `runner/` directly. It does not require the API server to be running.
+
+**Rationale confirmed by practice:** During this session, we used `make list`, `make test`, `make add`, `make export` extensively without ever starting the API server. Requiring `make api` to be running for basic CLI operations would have added friction to every single command.
+
+### Decision 3 — git_export filters None values
+
+**Context:** Pydantic's `model_dump(exclude_none=False)` includes all fields with `None` values. When these are saved to Atlas and then exported to JSON, the files are cluttered with `"field": null` entries that did not exist in the original hand-written JSON.
+
+**Decision:** `export_test()` in `git_export.py` strips `None` values at all levels before writing JSON. This keeps exported files clean and diff-friendly.
+
+**Consequence:** The JSON files on disk never contain `null` values. Fields that are not set simply don't appear in the file. This matches the v1 convention and keeps diffs meaningful.
+
+### Decision 4 — Conventional Commits across all repos
+
+**Context:** The transcendence repository already enforces Conventional Commits via git hooks.
+
+**Decision:** Same commit format, same types, same validation rules in the QA repo. The `commit-msg` hook is a direct adaptation of transcendence's hook.
+
+**Consequence:** Any developer who can commit to transcendence can commit to QA without learning new rules. The format `type(scope): Description` is enforced everywhere.
+
+---
+
+## 6. Current State — 14 Tests, 8 Active
+
+### Tests by domain and status
+
+| Domain | Active | Draft | Skipped | Total |
+|--------|--------|-------|---------|-------|
+| api | 3 | 0 | 0 | 3 |
+| auth | 1 | 2 | 1 | 4 |
+| gateway | 0 | 2 | 0 | 2 |
+| infra | 4 | 1 | 0 | 5 |
+| **Total** | **8** | **5** | **1** | **14** |
+
+### Test execution results (with API running, without mini-baas-infra)
+
+| Test | Status | Result | Notes |
+|------|--------|--------|-------|
+| API-001 | active | ✅ pass | QA API health check |
+| API-002 | active | ✅ pass | QA API /tests endpoint |
+| API-003 | active | ✅ pass | QA API /results/summary |
+| INFRA-001 | active | ✅ pass | Atlas ping (bash test) |
+| AUTH-003 | active | ❌ fail | GoTrue not running (expected) |
+| INFRA-003 | active | ❌ fail | GoTrue not running (expected) |
+| INFRA-004 | active | ❌ fail | PostgREST not running (expected) |
+| INFRA-005 | active | ❌ fail | MinIO not running (expected) |
+
+4 passing, 4 failing (all failures are services not running — not bugs).
+
+---
+
+## 7. Progress Against Objectives
+
+### Phase 5 — CLI `pqa` ✅ COMPLETE
+
+| Task | Owner | Status |
+|------|-------|--------|
+| `pqa test list` | dlesieur | ✅ Done (Roadmap 4) |
+| `pqa test run` | dlesieur | ✅ Done (Roadmap 4) |
+| `pqa test add` (interactive + --quick) | dlesieur | ✅ Done |
+| `pqa test edit` | dlesieur | ✅ Done |
+| `pqa test delete` | dlesieur | ✅ Done |
+| `pqa test export` | dlesieur | ✅ Done |
+
+### Code quality & Git hooks ✅ COMPLETE
+
+| Task | Owner | Status |
+|------|-------|--------|
+| ruff linter + formatter | dlesieur | ✅ Done |
+| `pyproject.toml` ruff config | dlesieur | ✅ Done |
+| `make lint` / `make fix` / `make format` | dlesieur | ✅ Done |
+| pre-commit hook (files + ruff on main) | dlesieur | ✅ Done |
+| commit-msg hook (Conventional Commits) | dlesieur | ✅ Done |
+| pre-push hook (message validation) | dlesieur | ✅ Done |
+| `vendor/hooks/install.sh` | dlesieur | ✅ Done |
+
+### Test definitions ✅ COMPLETE
+
+| Task | Owner | Status |
+|------|-------|--------|
+| All 10 v1 tests updated to v3 schema | dlesieur | ✅ Done |
+| INFRA-001 rewritten as bash test | dlesieur | ✅ Done |
+| GW-002 changed to manual | dlesieur | ✅ Done |
+| API-001, API-002, API-003 added | dlesieur | ✅ Done |
+| git_export None filtering | dlesieur | ✅ Done |
+| StrEnum migration (Python 3.11+) | dlesieur | ✅ Done |
+
+### Documentation ✅ COMPLETE
+
+| Task | Owner | Status |
+|------|-------|--------|
+| `python-guide.md` | dlesieur | ✅ Done |
+| `usage-guide.md` | dlesieur | ✅ Done |
+| `how-to-add-a-test.md` updated | dlesieur | ✅ Done |
+| `test-template.json` updated | dlesieur | ✅ Done |
+| `README.md` updated | dlesieur | ✅ Done |
+| Roadmap 5 | dlesieur | ✅ Done |
+
+### Phase 6 — Dashboard React + libcss ⏳ PENDING
+
+| Task | Owner | Status |
+|------|-------|--------|
+| Scaffold Vite + React + TS | serjimen | ⏳ Pending |
+| Integrate libcss components | serjimen | ⏳ Pending |
+| API client (`shared/api/`) | serjimen + dlesieur | ⏳ Pending |
+| Zustand stores | serjimen + dlesieur | ⏳ Pending |
+| Test list view (table + filters) | serjimen + dlesieur | ⏳ Pending |
+| Run results view (WebSocket live) | dlesieur | ⏳ Pending |
+| Test form (create/edit) | serjimen | ⏳ Pending |
+| Test detail (history) | dlesieur | ⏳ Pending |
+
+### Phase 7 — CI integration ⏳ PENDING
+
+| Task | Owner | Status |
+|------|-------|--------|
+| CI step in `transcendence` | Ambos | ⏳ Pending |
+| CI step in `mini-baas-infra` | Ambos | ⏳ Pending |
+
+---
+
+## 8. Next Steps
+
+```mermaid
+graph TD
+    NOW1["🔴 Immediate<br/>Dashboard scaffold with serjimen<br/>Vite + React + libcss + API client"]
+    NOW2["🔴 Immediate<br/>Get mini-baas-infra running<br/>GoTrue · PostgREST · MinIO<br/>→ 8/8 tests green"]
+    NEXT1["🟡 Next<br/>Dashboard: test list view<br/>Table with filters + Run button"]
+    NEXT2["🟡 Next<br/>Dashboard: live execution<br/>WebSocket result streaming"]
+    NEXT3["🟡 Next<br/>Dashboard: test form<br/>Create + edit via guided form"]
+    THEN1["🟢 Then<br/>CI integration<br/>python -m runner.ci --priority P0<br/>in transcendence + mini-baas-infra"]
+    THEN2["🟢 Then<br/>Team onboarding session<br/>45 min demo + hands-on<br/>Each dev adds 2 tests"]
+    LATER["⚪ Later<br/>JWT + cookie assertions<br/>WebSocket test executor<br/>Rate-limit test executor<br/>Result trend charts in dashboard"]
+
+    NOW1 --> NEXT1
+    NOW2 --> NEXT1
+    NEXT1 --> NEXT2
+    NEXT2 --> NEXT3
+    NEXT3 --> THEN1
+    THEN1 --> THEN2
+    THEN2 --> LATER
+
+    style NOW1 fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style NOW2 fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style NEXT1 fill:#fef3c7,stroke:#d97706,color:#78350f
+    style NEXT2 fill:#fef3c7,stroke:#d97706,color:#78350f
+    style NEXT3 fill:#fef3c7,stroke:#d97706,color:#78350f
+    style THEN1 fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style THEN2 fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style LATER fill:#f1f5f9,stroke:#94a3b8,color:#475569
+```
+
+### Immediate — Dashboard scaffold (serjimen + dlesieur)
+
+Create `dashboard/` with Vite + React + TypeScript. Integrate libcss as local dependency. Build the API client module (`shared/api/client.ts`) and Zustand stores (`shared/model/`). Coordinate with serjimen on how to import libcss components.
+
+### Immediate — Green tests (vjan-nie)
+
+Get mini-baas-infra services running (GoTrue, PostgREST, MinIO) so the 4 failing active tests turn green. This proves the system end-to-end against real services. No code changes needed in QA — just infrastructure.
+
+### Next — Dashboard views
+
+Build the three main views in order: test list (table + filters + Run button), live execution (WebSocket streaming), and test form (create/edit with dynamic fields per type). Each view uses libcss components and talks to the FastAPI endpoints.
+
+### Then — CI and team onboarding
+
+Add the QA step to `transcendence` and `mini-baas-infra` CI pipelines: `python -m runner.ci --priority P0`. Run the team onboarding session: 45-minute demo where each developer creates 2 tests using `make add`.
+
+### Criteria for "team-ready" (already met)
+
+A new team member can now:
+
+1. Clone the repo and run `make` → environment set up in under 2 minutes
+2. Run `make list` → see all 14 tests from Atlas
+3. Run `make add` → create a test with guided prompts, no documentation needed
+4. Run `make test` → execute tests and see results
+5. Commit with enforced Conventional Commits format
+6. Read `docs/usage-guide.md` for quick reference
+7. Read `docs/python-guide.md` to understand the codebase
+
+---
+
+*This document reflects the state of `prismatica-qa` as of March 26, 2026.*
+*Update when a phase is completed or a decision changes.*
+*Previous: [4-roadmap.md](4-roadmap.md) · Main README: [README.md](../../README.md)*
