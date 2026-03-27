@@ -154,7 +154,7 @@ banner:
 # ============================================
 
 hooks:  ## 🔒 Install git hooks (conventional commits, branch protection)
-	@bash vendor/hooks/install.sh
+	@bash hooks/install.sh
 
 # ============================================
 #  🚀 API SERVER
