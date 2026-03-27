@@ -2,7 +2,7 @@
 
 *Nueva estrategia: Python, CLI interactivo (`pqa`), Atlas como backend primario.*
 
-*Marzo 2026 · Version 1.0 · dlesieur & vjan-nie*
+*Marzo 2026 · Version 1.0 · vjan-nie*
 
 ---
 

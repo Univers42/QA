@@ -2,7 +2,7 @@
 
 *What we built, how it works, and where we go next.*
 
-*March 2026 · Version 1.0 · dlesieur & vjan-nie*
+*March 2026 · Version 1.0 · vjan-nie*
 
 ---
 

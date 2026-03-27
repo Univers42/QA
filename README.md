@@ -124,7 +124,7 @@ prismatica-qa/
 ├── cli/                           # pqa CLI (typer + Rich)
 │   ├── main.py                    # Entrypoint
 │   └── commands/                  # add · edit · delete · export · list · run
-├── vendor/hooks/                  # Git hooks
+├── hooks/                         # Git hooks
 │   ├── pre-commit                 # File validation + ruff on main
 │   ├── commit-msg                 # Conventional Commits
 │   └── pre-push                   # Commit message validation

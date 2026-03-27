@@ -2,7 +2,7 @@
 
 *From Node.js to Python + FastAPI: the migration that actually happened.*
 
-*March 2026 · Version 1.0 · dlesieur & vjan-nie*
+*March 2026 · Version 1.0 · vjan-nie*
 
 ---
 

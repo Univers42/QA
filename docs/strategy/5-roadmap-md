@@ -2,7 +2,7 @@
 
 *CLI complete, code quality enforced, ready for team adoption.*
 
-*March 2026 · Version 1.0 · dlesieur & vjan-nie*
+*March 2026 · Version 1.0 · vjan-nie*
 
 ---
 
@@ -197,7 +197,7 @@ graph TD
 
 **`pyproject.toml` `[tool.ruff]` section** — Configures ruff with line-length 100, PEP 8 rules (E, W), pyflakes (F), import sorting (I), pyupgrade (UP), bugbear (B), and simplify (SIM). Exception for B008 (FastAPI's `Depends()` pattern).
 
-### Git hooks (`vendor/hooks/`)
+### Git hooks (`hooks/`)
 
 **`pre-commit`** — Validates staged files: merge markers (blocks), sensitive files like `.env` (blocks), files >500KB (blocks), `__pycache__` (blocks), `breakpoint()`/`pdb` (warns), bare `print()` outside CLI/scripts (warns). On the `main` branch only: runs `ruff check` (blocks on PEP 8 errors) and `ruff format --check` (warns on formatting issues).
 

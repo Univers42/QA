@@ -2,7 +2,7 @@
 
 *De Node.js a Python + FastAPI + React: tres capas, una sola fuente de verdad.*
 
-*Marzo 2026 · Version 1.0 · dlesieur & vjan-nie*
+*Marzo 2026 · Version 1.0 · vjan-nie*
 
 ---
 
