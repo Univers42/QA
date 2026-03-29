@@ -229,7 +229,7 @@ tt-install:  ## Install local Playwright dependencies for trascendence_testing o
 
 tt-smoke:  ## Run Playwright smoke checks from trascendence_testing on the host
 	@$(call step,$(BLUE)ℹ,Running Transcendence smoke suite against $(ENV)...)
-	@bash trascendence_testing/scripts/run-playwright.sh --suite smoke --target $(ENV) $(ARGS)
+	@bash trascendence_testing/scripts/run-playwright.sh --target $(ENV) $(ARGS)
 
 tt-headers:  ## Run reusable header and cookie assertions from trascendence_testing on the host
 	@$(call step,$(BLUE)ℹ,Checking frontend headers and cookies against $(ENV)...)

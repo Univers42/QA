@@ -3,7 +3,7 @@
 # cookie assertion script with the configured cookie names.
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 TARGET="${TEST_ENV:-preview}"
 URL=""

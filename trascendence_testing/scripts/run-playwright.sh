@@ -3,16 +3,18 @@
 # module configuration and optional grep filters.
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 TARGET="${TEST_ENV:-local}"
 GREP=""
+FILE=""
 HEADED=0
 
 usage() {
   cat <<'EOF'
 Usage:
   bash trascendence_testing/scripts/run-playwright.sh [--target local|dev|preview|staging]
+                                                     [--file tests/example.spec.ts]
                                                      [--grep REGEX] [--headed]
 EOF
 }
@@ -26,6 +28,10 @@ while (($#)); do
     --grep)
       shift
       GREP="${1:-}"
+      ;;
+    --file)
+      shift
+      FILE="${1:-}"
       ;;
     --headed)
       HEADED=1
@@ -53,7 +59,13 @@ export TT_BASE_URL="$BASE_URL"
 export PLAYWRIGHT_BASE_URL="$BASE_URL"
 export PLAYWRIGHT_BROWSERS_PATH=0
 
-CMD=("$PLAYWRIGHT_BIN" test "tests/smoke")
+CMD=("$PLAYWRIGHT_BIN" test)
+
+if [[ -n "$FILE" ]]; then
+  CMD+=("$FILE")
+else
+  CMD+=("tests")
+fi
 
 if [[ -n "$GREP" ]]; then
   CMD+=(--grep "$GREP")

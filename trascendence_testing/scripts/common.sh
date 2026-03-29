@@ -3,8 +3,8 @@
 # logging, command checks, environment target resolution, and cookie defaults.
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TT_DIR="$ROOT_DIR/trascendence_testing"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TT_DIR="$ROOT_DIR"
 
 log_step() {
   printf '[trascendence_testing] %s\n' "$*"

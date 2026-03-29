@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Modular Playwright and security checks for Transcendence QA",
   "scripts": {
-    "smoke": "playwright test tests/smoke"
+    "smoke": "playwright test tests"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0"

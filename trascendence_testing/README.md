@@ -17,10 +17,9 @@ trascendence_testing/
 ├── definitions/
 │   └── ui/
 ├── scripts/
-│   └── lib/
 └── tests/
-    ├── helpers/
-    └── smoke/
+    ├── support.ts
+    └── *.spec.ts
 ```
 
 ## Install
@@ -75,7 +74,7 @@ The wrappers read the shared repo `.env`. Relevant variables are documented in
 
 This minimal version keeps only the pieces that are useful right now:
 
-- Playwright smoke coverage
+- Playwright smoke coverage with one focused spec file per test
 - reusable header / cookie assertions
 - JSON definitions integrated with the Python battery and Mongo history
 
