@@ -268,10 +268,10 @@ def _save_test(data: dict) -> None:
     )
     console.print("  [green]✓[/green]  Saved to Atlas")
     console.print(f"  [green]✓[/green]  Exported to {path}")
-    console.print(
-        f'  [dim]↳  git add {path} && git commit -m "test({test.domain}): Add {test.id}"[/dim]'
-    )
-    console.print()
+
+    from cli.commands.git_helper import offer_commit
+
+    offer_commit(str(path), str(test.domain), test.id, "Add", test.title)
 
 
 def add_test(

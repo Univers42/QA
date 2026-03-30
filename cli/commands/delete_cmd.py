@@ -54,11 +54,16 @@ def delete_test(
 
         console.print(f"\n  [green]✓[/green]  {test_id} marked as deprecated")
         console.print(f"  [green]✓[/green]  Updated {path}")
-        console.print(
-            f"  [dim]↳  git add {path} && "
-            f'git commit -m "test({existing.get("domain", "?")}): Deprecate {test_id}"[/dim]'
+
+        from cli.commands.git_helper import offer_commit
+
+        offer_commit(
+            str(path),
+            existing.get("domain", "unknown"),
+            test_id,
+            "Deprecate",
+            existing.get("title", test_id),
         )
-        console.print()
 
     finally:
         disconnect()

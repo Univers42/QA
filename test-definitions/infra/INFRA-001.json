@@ -37,6 +37,6 @@
   "url": "mongodb://localhost:27017",
   "expected_exit_code": 0,
   "expected_output": "ok",
-  "script": "cd /home/dlesieur/QA && .venv/bin/python -c \"from core.db import get_db; get_db().command('ping'); print('ok')\"",
+  "script": ".venv/bin/python -c \"from core.db import get_db; get_db().command('ping'); print('ok')\"",
   "timeout_seconds": 10
 }

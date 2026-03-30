@@ -15,7 +15,7 @@ websockets>=12.0            # WebSocket support for live test execution
 httpx>=0.26.0               # Async HTTP client (service calls)
 
 # --- CLI ---
-typer[all]>=0.9.0           # CLI framework (subcommands, autocomplete)
+typer>=0.9.0           # CLI framework (subcommands, autocomplete)
 rich>=13.0.0                # Terminal UI (tables, colors, progress bars)
 
 # --- Format ---

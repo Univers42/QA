@@ -139,11 +139,10 @@ def edit_test(
 
         console.print(f"\n  [green]✓[/green]  {test_id} updated in Atlas")
         console.print(f"  [green]✓[/green]  Exported to {path}")
-        console.print(
-            f"  [dim]↳  git add {path} && "
-            f'git commit -m "test({test.domain}): Update {test_id}"[/dim]'
-        )
-        console.print()
+
+        from cli.commands.git_helper import offer_commit
+
+        offer_commit(str(path), str(test.domain), test_id, "Update", test.title)
 
     finally:
         disconnect()
