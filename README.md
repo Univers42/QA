@@ -5,6 +5,10 @@
 prismatica-qa is the dedicated QA repository for [ft_transcendence](https://github.com/Univers42/transcendence). It implements a **Data-Driven Automation (DDA)** strategy: tests are defined as JSON documents, validated with Pydantic, stored in MongoDB Atlas, executed by a Python runner, and exposed through a FastAPI REST API. A CLI (`pqa`) provides guided test creation and management. A React dashboard (built with libcss) is under development. No test framework lock-in. No hardcoded assertions. Tests are data.
 
 ---
+# IMPORTANT MESSAGE: THIS README NEEDS UPDATING!
+# Change of strategy to implement shown in document 6-roadmap.md
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+---
 
 ## Table of Contents
 
