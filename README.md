@@ -1,331 +1,372 @@
 # PRISMATICA · QA
 
-*QA infrastructure for the Prismatica / ft_transcendence project — by Univers42, 2026.*
+*Test Registry for the Prismatica / ft_transcendence ecosystem — by Univers42, 2026.*
 
-prismatica-qa is the dedicated QA repository for [ft_transcendence](https://github.com/Univers42/transcendence). It implements a **Data-Driven Automation (DDA)** strategy: tests are defined as JSON documents, validated with Pydantic, stored in MongoDB Atlas, executed by a Python runner, and exposed through a FastAPI REST API. A CLI (`pqa`) provides guided test creation and management. A React dashboard (built with libcss) is under development. No test framework lock-in. No hardcoded assertions. Tests are data.
+prismatica-qa is a **Test Registry** — a centralized catalog and result store for tests that live as scripts in each project repository. It registers test metadata in MongoDB Atlas, orchestrates execution across multiple repos, and persists results for tracking and analysis. Tests are code. QA is the catalog.
 
----
-# IMPORTANT MESSAGE: THIS README NEEDS UPDATING!
-# Change of strategy to implement shown in document 6-roadmap.md
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ---
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
-- [Architecture](#architecture)
-- [Test Domains](#test-domains)
-- [How to Add a Test](#how-to-add-a-test)
-- [Running Tests](#running-tests)
+- [Quick Start (as submodule in your repo)](#quick-start-as-submodule-in-your-repo)
+- [How It Works](#how-it-works)
+- [Integration Template](#integration-template)
+- [Usage Guide](#usage-guide)
+- [Managing Test Registry](#managing-test-registry)
 - [All Commands](#all-commands)
 - [API Reference](#api-reference)
-- [Code Quality](#code-quality)
-- [Git Hooks](#git-hooks)
-- [Dashboard](#dashboard)
-- [CI Integration](#ci-integration)
+- [File Naming Conventions](#file-naming-conventions)
+- [Architecture](#architecture)
 - [Documentation](#documentation)
-- [Bibliography](#bibliography)
-- [Use of AI](#use-of-ai)
 
 ---
 
-## Quick Start
+## Quick Start (as submodule in your repo)
 
-Prerequisites: Python 3.11+, a MongoDB Atlas account (free M0 tier).
-
-```bash
-git clone https://github.com/Univers42/QA.git
-cd QA
-make
-```
-
-`make` verifies Python, creates a virtual environment, installs all dependencies, registers the `pqa` CLI, and installs git hooks. Then configure your Atlas connection:
+### Step 1 — Add the submodule
 
 ```bash
-nano .env                                      # set MONGO_URI_ATLAS
-.venv/bin/python scripts/verify_setup.py       # confirm Atlas connects
-make migrate                                   # load test-definitions/ into Atlas (once)
-make list                                      # see all tests
-make test                                      # run active tests
+cd ~/your-repo
+git submodule add https://github.com/Univers42/QA.git vendor/qa
 ```
 
----
+### Step 2 — Configure Atlas access
 
-## Architecture
-
-```mermaid
-graph TB
-    subgraph CLIENTS["Clients"]
-        CLI["CLI · pqa<br/>add · edit · list · run · export · delete"]
-        DASHBOARD["Dashboard · React + libcss<br/>:5173 (under development)"]
-    end
-
-    subgraph API_LAYER["API layer"]
-        API["FastAPI · :8000<br/>REST + WebSocket"]
-    end
-
-    subgraph CORE["Core"]
-        SCHEMA["Pydantic v2 · schema validation"]
-        RUNNER["Runner · httpx async + subprocess"]
-        EXPORT["git_export · JSON to disk"]
-    end
-
-    subgraph DATA["Data"]
-        ATLAS[("MongoDB Atlas · test_hub<br/>tests + results")]
-        JSON["test-definitions/*.json<br/>git history"]
-    end
-
-    subgraph SERVICES["Services under test"]
-        GOTRUE["GoTrue · :9999"]
-        POSTGREST["PostgREST · :3000"]
-        MINIO["MinIO · :9000"]
-        OTHER["Kong · Realtime"]
-    end
-
-    CLI -->|"direct (pymongo)"| ATLAS
-    CLI -->|"executes"| RUNNER
-    DASHBOARD -->|"HTTP + WS"| API
-    API --> SCHEMA
-    API --> RUNNER
-    API --> EXPORT
-    RUNNER -->|"HTTP"| GOTRUE
-    RUNNER -->|"HTTP"| POSTGREST
-    RUNNER -->|"HTTP"| MINIO
-    RUNNER --> ATLAS
-    EXPORT --> JSON
-
-    style CLIENTS fill:#fef3c7,stroke:#d97706,color:#78350f
-    style API_LAYER fill:#ede9fe,stroke:#7c3aed,color:#3b1f6e
-    style CORE fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
-    style DATA fill:#dcfce7,stroke:#22c55e,color:#14532d
-    style SERVICES fill:#f8fafc,stroke:#cbd5e1,color:#1e293b
+```bash
+cp vendor/qa/.env.example vendor/qa/.env
+nano vendor/qa/.env
 ```
 
-### Three-layer model
+Set `MONGO_URI_ATLAS` with the team's Atlas connection string. Ask the QA admin if you don't have it.
 
-| Layer | What lives here | Technology |
-|-------|----------------|------------|
-| **Core** | Schema validation, test execution, result persistence, git export | Python · Pydantic v2 · httpx · pymongo |
-| **API** | REST endpoints + WebSocket for live execution | FastAPI · uvicorn |
-| **Clients** | Terminal CLI and web dashboard | typer + Rich (CLI) · React + libcss (dashboard) |
+**Important:** `vendor/qa/.env` is gitignored — each developer configures it once on their machine.
 
-### Repository structure
+### Step 3 — Add Make rules
 
-```
-prismatica-qa/
-├── core/                          # Business logic
-│   ├── db.py                      # Atlas connection (pymongo)
-│   ├── schema.py                  # Pydantic v2: HttpTest, BashTest, ManualTest
-│   └── git_export.py              # Write tests as JSON to disk
-├── runner/                        # Test execution engine
-│   ├── executor.py                # HTTP executor (httpx async)
-│   ├── bash_executor.py           # Shell command executor
-│   ├── results.py                 # Persist results to Atlas
-│   └── ci.py                      # Minimal CI runner
-├── api/                           # FastAPI REST API
-│   ├── main.py                    # App + CORS
-│   └── routers/                   # tests.py · run.py · results.py
-├── cli/                           # pqa CLI (typer + Rich)
-│   ├── main.py                    # Entrypoint
-│   └── commands/                  # add · edit · delete · export · list · run
-├── hooks/                         # Git hooks
-│   ├── pre-commit                 # File validation + ruff on main
-│   ├── commit-msg                 # Conventional Commits
-│   └── pre-push                   # Commit message validation
-├── dashboard/                     # React + libcss (under development)
-├── test-definitions/              # JSON source of truth (git)
-├── scripts/                       # verify_setup.py · migrate_v1_to_v2.py
-├── docs/                          # Guides + roadmaps
-├── requirements.txt
-├── pyproject.toml                 # pqa entry point + ruff config
-├── Makefile
-└── .env.example
+Copy the [Integration Template](#integration-template) into your Makefile. Change `QA_REPO` to your repository name.
+
+### Step 4 — Register and run
+
+```bash
+make qa-setup                          # install dependencies (first time)
+make qa-register                       # scan scripts/ and register in Atlas
+make qa-list                           # see your registered tests
+make qa-test                           # run all active tests
 ```
 
 ---
 
-## Test Domains
+## How It Works
 
-| Domain | Prefix | Service under test |
-|--------|--------|--------------------|
-| `auth` | `AUTH-` | GoTrue — login, OAuth, JWT, sessions |
-| `gateway` | `GW-` | Kong — routing, rate limiting, CORS |
-| `schema` | `SCH-` | schema-service — DDL lifecycle, collections, fields |
-| `api` | `API-` | PostgREST or QA API — endpoints, filters, RLS |
-| `realtime` | `RT-` | Supabase Realtime — WebSocket, subscriptions |
-| `storage` | `STG-` | MinIO — presigned URLs, buckets, file upload |
-| `ui` | `UI-` | React frontend — components, hooks, stores |
-| `infra` | `INFRA-` | Docker, health checks, Atlas, infrastructure |
+```
+Your repo (transcendence, mini-baas-infra, ...)
+├── scripts/
+│   ├── phase1-smoke-test.sh           ← test code lives HERE
+│   ├── phase2-auth-test.sh
+│   └── my-feature-test.sh
+│
+├── vendor/qa/                         ← QA submodule
+│   ├── .env                           ← Atlas password (NOT committed)
+│   └── (QA system code)
+│
+└── Makefile
+    ├── make qa-register               ← scans scripts/, registers in Atlas
+    ├── make qa-test                   ← executes tests, stores results
+    └── make qa-list                   ← shows registered tests
+```
 
-### Priority levels
+**Tests are code in your repo.** You write bash scripts, pytest files, or jest tests. QA never touches your test code.
 
-| Priority | Meaning | CI behaviour |
-|----------|---------|--------------|
-| `P0` | System cannot function | Blocks merge |
-| `P1` | Critical feature broken | Blocks merge |
-| `P2` | Degraded experience | Warning only |
-| `P3` | Nice to have | Report only |
+**Atlas stores metadata and results.** `make qa-register` reads your scripts directory, detects test files by naming convention, and writes a catalog entry to Atlas. `make qa-test` reads the catalog, executes each script, and writes results back to Atlas.
+
+**No JSON definitions needed.** Your test scripts ARE the tests. QA just tracks them.
 
 ---
 
-## How to Add a Test
+## Integration Template
 
-```bash
-make add                        # interactive mode with guided prompts
+Copy this entire block into any project Makefile. Change `QA_REPO` to your repository name.
+
+```makefile
+# ============================================================================
+# QA Test Registry (Prismatica QA integration)
+# ============================================================================
+# Setup:
+#   git submodule add https://github.com/Univers42/QA.git vendor/qa
+#   cp vendor/qa/.env.example vendor/qa/.env
+#   nano vendor/qa/.env                  # set MONGO_URI_ATLAS
+
+QA_DIR    := vendor/qa
+PQA       := $(QA_DIR)/.venv/bin/pqa
+QA_REPO   := your-repo-name
+
+qa-setup: ## 🧪 Install/update QA submodule (auto-pulls latest)
+	@cd $(QA_DIR) && git pull origin main --quiet 2>/dev/null || true
+	@if [ ! -d "$(QA_DIR)/.venv" ]; then \
+		echo -e "\033[0;34mSetting up QA submodule...\033[0m"; \
+		cd $(QA_DIR) && make install SHOW_NEXT_STEPS=0; \
+	else \
+		echo -e "\033[0;32m✓ QA submodule ready\033[0m"; \
+		cd $(QA_DIR) && .venv/bin/pip install -e . -q 2>/dev/null; \
+	fi
+
+qa-register: qa-setup ## 🧪 Register/update test scripts in Atlas
+	@$(PQA) test register --repo $(QA_REPO) --scan scripts/
+
+qa-list: qa-setup ## 📋 List registered tests (DOMAIN= LAYER= STATUS=)
+	@$(PQA) test list --repo $(QA_REPO) \
+		$(if $(DOMAIN),--domain $(DOMAIN)) \
+		$(if $(LAYER),--layer $(LAYER)) \
+		$(if $(STATUS),--status $(STATUS))
+
+qa-test: qa-setup ## 🧪 Run tests (DOMAIN= PRIORITY= LAYER= ID=)
+	@$(PQA) test run --repo $(QA_REPO) --repo-root . \
+		$(if $(DOMAIN),--domain $(DOMAIN)) \
+		$(if $(PRIORITY),--priority $(PRIORITY)) \
+		$(if $(LAYER),--layer $(LAYER)) \
+		$(if $(ID),--id $(ID))
+
+qa-my: qa-setup ## 👤 List my tests only (uses PQA_USER env var)
+	@$(PQA) test list --repo $(QA_REPO) --mine
+
+.PHONY: qa-setup qa-register qa-list qa-test qa-my
 ```
 
-Or in one line:
+**Repos currently integrated:**
 
-```bash
-.venv/bin/pqa test add --quick \
-  --id AUTH-005 --title "Signup creates account" \
-  --domain auth --priority P1 --type http \
-  --url "http://localhost:9999/auth/v1/signup" \
-  --method POST --expected-status 200
-```
-
-Full guide: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md)
+| Repository | `QA_REPO` value | Test directory | Tests |
+|---|---|---|---|
+| mini-baas-infra | `mini-baas-infra` | `scripts/` | 15 registered |
+| transcendence | `transcendence` | `tests/` | Pending |
 
 ---
 
-## Running Tests
+## Usage Guide
+
+### Daily workflow
 
 ```bash
-make test                       # all active tests
-make test DOMAIN=auth           # only auth
-make test PRIORITY=P0           # only blocking
-make test ID=AUTH-003           # one test
+make qa-list                           # see all tests for this repo
+make qa-test                           # run all active tests
+make qa-test DOMAIN=auth               # run only auth tests
+make qa-test PRIORITY=P0               # run only blocking tests
+make qa-test ID=BAAS-PHASE08           # run one specific test
+make qa-test LAYER=backend             # run only backend tests
 ```
+
+### After creating new test scripts
+
+```bash
+# 1. Name your script following the convention (see File Naming Conventions)
+#    Example: scripts/phase16-new-feature-test.sh
+
+# 2. Re-register to pick up the new file
+make qa-register
+
+# 3. Verify it appears
+make qa-list
+
+# 4. Run it
+make qa-test ID=BAAS-PHASE16
+```
+
+### Skipping a test temporarily
+
+```bash
+cd vendor/qa
+.venv/bin/pqa test edit BAAS-PHASE09
+# When prompted for status, type: skipped
+
+# To re-activate later:
+.venv/bin/pqa test edit BAAS-PHASE09
+# Change status back to: active
+```
+
+### Bulk status changes
+
+```bash
+cd vendor/qa
+.venv/bin/python -c "
+from core.db import get_db
+# Skip all storage tests
+result = get_db()['tests'].update_many(
+    {'repo': 'mini-baas-infra', 'domain': 'storage'},
+    {'\$set': {'status': 'skipped'}}
+)
+print(f'Skipped {result.modified_count} tests')
+"
+```
+
+### Updating test metadata
+
+```bash
+cd vendor/qa
+
+# Interactive edit (title, domain, priority, layer, etc.)
+.venv/bin/pqa test edit BAAS-PHASE08
+
+# Bulk: set all infra tests to P0
+.venv/bin/python -c "
+from core.db import get_db
+result = get_db()['tests'].update_many(
+    {'repo': 'mini-baas-infra', 'domain': 'infra'},
+    {'\$set': {'priority': 'P0'}}
+)
+print(f'Updated {result.modified_count} tests')
+"
+```
+
+### Re-registering
+
+`make qa-register` is safe to run repeatedly:
+- Adds new files that match the naming convention
+- Updates the `script` path if a file was renamed
+- Does NOT overwrite `status`, `author`, or `priority` of existing tests
+- Does NOT remove tests whose scripts were deleted
 
 ---
 
 ## All Commands
 
+### From your project (via Make rules)
+
 | Command | Description |
 |---------|-------------|
-| `make` | Full setup (install + hooks) |
-| `make api` | Start FastAPI on :8000 (Swagger at /docs) |
-| `make test` | Run all active tests |
-| `make test DOMAIN=auth` | Run auth tests only |
-| `make test PRIORITY=P0` | Run P0 tests only |
-| `make test ID=AUTH-003` | Run a single test |
-| `make list` | List all tests |
-| `make add` | Create a test (interactive) |
-| `make edit ID=AUTH-003` | Edit a test |
-| `make delete ID=AUTH-003` | Deprecate a test |
-| `make export` | Export Atlas to JSON files |
-| `make migrate` | Load JSON files into Atlas |
-| `make lint` | Check PEP 8 compliance |
-| `make fix` | Auto-fix lint issues |
-| `make format` | Format code + fix |
-| `make hooks` | Install git hooks |
-| `make clean` | Remove venv + caches |
-| `make re` | Full rebuild |
-| `make help` | Show categorised help |
+| `make qa-setup` | Install/update QA submodule |
+| `make qa-register` | Scan and register test scripts |
+| `make qa-list` | List tests for this repo |
+| `make qa-list DOMAIN=auth` | Filter by domain |
+| `make qa-list LAYER=backend` | Filter by layer |
+| `make qa-list STATUS=active` | Filter by status |
+| `make qa-test` | Run all active tests |
+| `make qa-test DOMAIN=auth` | Run auth tests |
+| `make qa-test PRIORITY=P0` | Run blocking tests |
+| `make qa-test ID=BAAS-PHASE08` | Run one test |
+| `make qa-my` | List my tests (`PQA_USER`) |
+
+### From the QA repo (admin)
+
+| Command | Description |
+|---------|-------------|
+| `pqa test list` | All tests, all repos |
+| `pqa test list --repo X` | Tests for repo X |
+| `pqa test list --mine` | My tests |
+| `pqa test run` | Run all active tests |
+| `pqa test register --repo X --scan dir/` | Register scripts |
+| `pqa test add` | Create test interactively |
+| `pqa test edit ID` | Edit metadata |
+| `pqa test delete ID` | Deprecate test |
+| `make api` | Start FastAPI (:8000) |
+| `make lint` | PEP 8 check |
+| `make format` | Auto-format |
 
 ---
 
 ## API Reference
 
-Start with `make api`. Swagger UI at [http://localhost:8000/docs](http://localhost:8000/docs).
+Start with `make api` from the QA repo. Swagger at [http://localhost:8000/docs](http://localhost:8000/docs).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/` | Health check |
-| `GET` | `/tests` | List tests (filters: `domain`, `priority`, `status`) |
-| `GET` | `/tests/{id}` | Get test by ID |
-| `POST` | `/tests` | Create test (validates + exports JSON) |
-| `PATCH` | `/tests/{id}` | Update test |
-| `DELETE` | `/tests/{id}` | Soft-delete (deprecated) |
-| `POST` | `/tests/run` | Execute tests (filters: `domain`, `priority`, `id`) |
-| `GET` | `/results` | Execution history |
-| `GET` | `/results/summary` | Pass/fail counts by domain |
-| `WS` | `/ws/run` | Stream results in real time |
+| `GET` | `/tests` | List (filters: `domain`, `priority`, `status`, `repo`, `layer`, `author`, `group`, `runner`) |
+| `GET` | `/tests/{id}` | Get by ID |
+| `POST` | `/tests` | Create |
+| `PATCH` | `/tests/{id}` | Update |
+| `DELETE` | `/tests/{id}` | Deprecate |
+| `POST` | `/tests/run` | Execute (filters: `domain`, `priority`, `repo`, `layer`) |
+| `GET` | `/results` | History |
+| `GET` | `/results/summary` | Counts by domain |
+| `WS` | `/ws/run` | Real-time stream |
 
 ---
 
-## Code Quality
+## File Naming Conventions
 
-PEP 8 enforced by [ruff](https://docs.astral.sh/ruff/). On `main`, the pre-commit hook blocks non-compliant code. On feature branches, ruff is not enforced.
+Name your test files following these patterns so `make qa-register` detects them automatically.
 
-```bash
-make lint                       # check (read-only)
-make fix                        # auto-fix
-make format                     # format + fix
+### Bash
+```
+*test*.sh              phase1-smoke-test.sh, auth-flow-test.sh
+phase*-*.sh            phase3-authenticated-db-test.sh
 ```
 
+### Python
+```
+test_*.py              test_auth.py, test_isolation.py
+*-test.py              phase15-mongo-mvp-test.py
+*_test.py              user_isolation_test.py
+```
+
+### JavaScript / TypeScript
+```
+*.test.ts              auth.test.ts, api.test.ts
+*.test.tsx             LoginForm.test.tsx
+*.spec.ts              auth.spec.ts
+```
+
+### Always skipped
+```
+test-ui.sh             helper script
+conftest.py            pytest config
+jest.config.ts         jest config
+*.sql, *.md            not tests
+generate-*.sh          utility scripts
+```
+
+### Auto-generated IDs
+
+| Repo + filename | Generated ID |
+|---|---|
+| `mini-baas-infra` + `phase8-token-lifecycle-test.sh` | `BAAS-PHASE08` |
+| `transcendence` + `auth.test.ts` | `FT-AUTH` |
+| `my-project` + `feature-test.sh` | `MYPR-FEATURE` |
+
 ---
 
-## Git Hooks
+## Architecture
 
-Installed automatically by `make`. Same Conventional Commits format as transcendence.
-
-| Hook | What it does |
-|------|-------------|
-| `pre-commit` | Blocks merge markers, sensitive files, large files, cache files. Runs ruff on main. |
-| `commit-msg` | Enforces `type(scope): Description` (25-170 chars, uppercase, no WIP/TODO) |
-| `pre-push` | Validates commit messages of new commits |
-
-Bypass: `SKIP_PRE_COMMIT=1`, `SKIP_COMMIT_MSG=1`, `SKIP_PRE_PUSH=1`
-
----
-
-## Dashboard
-
-*Under development — Phase 6.*
-
-React application with libcss components consuming the FastAPI endpoints. Planned: test list with filters, live WebSocket execution, guided test form, result history.
-
----
-
-## CI Integration
-
-```yaml
-- name: Run QA smoke tests
-  run: |
-    git clone https://github.com/Univers42/QA.git
-    cd QA
-    pip install -r requirements.txt
-    python -m runner.ci --priority P0
-  env:
-    MONGO_URI_ATLAS: ${{ secrets.MONGO_URI_ATLAS }}
+```
+┌──────────────────────────────────────────────────────┐
+│  Any project repo                                    │
+│  ├── scripts/ or tests/    ← test code              │
+│  ├── vendor/qa/            ← QA submodule           │
+│  │   └── .env              ← Atlas password         │
+│  └── Makefile              ← qa-test, qa-list, ...  │
+└──────────────────┬───────────────────────────────────┘
+                   │
+                   ▼
+         ┌──────────────────┐
+         │   QA System      │
+         │  Registry Engine │ → detects + registers scripts
+         │  Multi-Runner    │ → bash, http, jest, pytest
+         │  Result Store    │ → persists to Atlas
+         └────────┬─────────┘
+                  │
+                  ▼
+         ┌──────────────────┐
+         │  MongoDB Atlas   │
+         │  tests           │ → metadata catalog
+         │  results         │ → execution history (90d TTL)
+         └──────────────────┘
 ```
 
 ---
 
 ## Documentation
 
-| Document | What it covers |
-|----------|---------------|
-| [docs/usage-guide.md](docs/usage-guide.md) | Quick reference: commands, tables, troubleshooting |
-| [docs/python-guide.md](docs/python-guide.md) | Python onboarding for C/JS developers |
-| [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md) | Step-by-step test authoring |
-| [docs/strategy/](docs/strategy/) | Roadmaps 0-5: architecture decisions and history |
-
----
-
-## Bibliography
-
-| Resource | What it informed |
-|----------|-----------------|
-| [FastAPI](https://fastapi.tiangolo.com/) | REST API, dependency injection, WebSocket |
-| [Pydantic v2](https://docs.pydantic.dev/) | Schema validation, discriminated unions |
-| [pymongo](https://pymongo.readthedocs.io/) | Atlas connection, TTL indexes |
-| [typer](https://typer.tiangolo.com/) | CLI framework |
-| [Rich](https://rich.readthedocs.io/) | Terminal UI |
-| [Ruff](https://docs.astral.sh/ruff/) | Linter + formatter |
-| [httpx](https://www.python-httpx.org/) | Async HTTP client |
-| [Practical Test Pyramid — Fowler](https://martinfowler.com/articles/practical-test-pyramid.html) | Test classification |
-| [Data-Driven Testing — SmartBear](https://smartbear.com/learn/automated-testing/data-driven-testing/) | DDA philosophy |
-| [Conventional Commits](https://www.conventionalcommits.org/) | Commit format |
+| Document | Covers |
+|----------|--------|
+| [docs/usage-guide.md](docs/usage-guide.md) | Daily operations reference |
+| [docs/python-guide.md](docs/python-guide.md) | Python onboarding |
+| [docs/frontend-guide.md](docs/frontend-guide.md) | CSS/React onboarding |
+| [docs/strategy/](docs/strategy/) | Roadmaps 0–6 |
 
 ---
 
 ## Use of AI
 
-AI tools were used during development. Concretely: architecture decisions, scaffolding, documentation, and the Python onboarding guide were discussed with Claude and iterated on. What AI did not do: decide which tests to write, define correct behaviour for each service, configure Atlas, or commit anything without being read and understood first. Test definitions are written by the team based on direct knowledge of the system under test.
+AI tools were used during development: architecture, scaffolding, documentation, and onboarding guides were discussed with Claude and iterated on. Test scripts are written by the team based on direct knowledge of the systems under test.
 
 ---
 
-*Quick reference: [docs/usage-guide.md](docs/usage-guide.md) · Test authoring: [docs/how-to-add-a-test.md](docs/how-to-add-a-test.md) · Python guide: [docs/python-guide.md](docs/python-guide.md)*
 *Main project: [Univers42/transcendence](https://github.com/Univers42/transcendence) · Infrastructure: [Univers42/mini-baas-infra](https://github.com/Univers42/mini-baas-infra)*
