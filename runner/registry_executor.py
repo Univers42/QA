@@ -53,7 +53,7 @@ async def execute_registered_test(entry: dict, repo_root: str = ".") -> dict:
         return await _execute_script(
             entry,
             repo_root,
-            shell_cmd=["python", "-m", "pytest", script, "-v"],
+            shell_cmd=["python3", "-m", "pytest", script, "-v"],
         )
     elif runner == "manual":
         return {
