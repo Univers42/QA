@@ -16,7 +16,6 @@ from rich.panel import Panel
 from rich.table import Table
 
 from core.db import disconnect, get_db
-from core.git_export import export_test
 from core.schema import parse_test
 
 console = Console()
@@ -253,25 +252,10 @@ def _save_test(data: dict) -> None:
     doc = test.model_dump(exclude_none=False)
     db["tests"].insert_one(doc)
 
-    # Export to JSON on disk
-    path = export_test(doc)
-
-    # Show summary
-    console.print()
-    console.print(
-        Panel(
-            f"[bold]{test.id}[/bold] · {test.priority} · {test.domain} · {data.get('type', 'manual')}\n"
-            f"{test.title}",
-            title="[green]Test created[/green]",
-            border_style="green",
-        )
-    )
     console.print("  [green]✓[/green]  Saved to Atlas")
-    console.print(f"  [green]✓[/green]  Exported to {path}")
-
     from cli.commands.git_helper import offer_commit
 
-    offer_commit(str(path), str(test.domain), test.id, "Add", test.title)
+    offer_commit(test.id, str(test.domain), test.id, "Add", test.title)
 
 
 def add_test(

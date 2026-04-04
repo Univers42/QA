@@ -10,7 +10,6 @@ import typer
 from rich.console import Console
 
 from core.db import disconnect, get_db
-from core.git_export import export_test
 
 console = Console()
 
@@ -48,22 +47,8 @@ def delete_test(
         # Update in Atlas
         db["tests"].update_one({"id": test_id}, {"$set": {"status": "deprecated"}})
 
-        # Export updated JSON
-        updated = db["tests"].find_one({"id": test_id}, {"_id": 0})
-        path = export_test(updated)
-
         console.print(f"\n  [green]✓[/green]  {test_id} marked as deprecated")
-        console.print(f"  [green]✓[/green]  Updated {path}")
-
-        from cli.commands.git_helper import offer_commit
-
-        offer_commit(
-            str(path),
-            existing.get("domain", "unknown"),
-            test_id,
-            "Deprecate",
-            existing.get("title", test_id),
-        )
+        console.print(f"  [green]✓[/green]  {test_id} deprecated in Atlas")
 
     finally:
         disconnect()

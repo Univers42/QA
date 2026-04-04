@@ -10,7 +10,6 @@ from rich.console import Console
 from rich.panel import Panel
 
 from core.db import disconnect, get_db
-from core.git_export import export_test
 from core.schema import parse_test
 
 console = Console()
@@ -134,15 +133,10 @@ def edit_test(
         doc = test.model_dump(exclude_none=False)
         db["tests"].update_one({"id": test_id}, {"$set": doc})
 
-        # Export to JSON
-        path = export_test(doc)
-
         console.print(f"\n  [green]✓[/green]  {test_id} updated in Atlas")
-        console.print(f"  [green]✓[/green]  Exported to {path}")
-
         from cli.commands.git_helper import offer_commit
 
-        offer_commit(str(path), str(test.domain), test_id, "Update", test.title)
+        offer_commit(test_id, str(test.domain), test_id, "Update", test.title)
 
     finally:
         disconnect()

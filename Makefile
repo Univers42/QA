@@ -13,8 +13,8 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -ec
 
-.PHONY: help all install api test list add export lint fix format clean fclean \
-        preflight check-python check-env venv hooks migrate dashboard re
+.PHONY: help all install api test list add lint fix format clean fclean \
+        preflight check-python check-env venv hooks dashboard re
 
 .DEFAULT_GOAL := all
 
@@ -204,19 +204,6 @@ delete: install  ## 🗑️  Deprecate a test (ID=AUTH-003)
 		exit 1; \
 	fi
 	@$(PQA) test delete $(ID)
-
-# ============================================
-#  🗄️ DATA MANAGEMENT
-# ============================================
-
-migrate: install  ## 🔄 Migrate v1 JSON tests into Atlas
-	@$(call step,$(BLUE)ℹ,Migrating test definitions to Atlas...)
-	@$(PYTHON) scripts/migrate_v1_to_v2.py
-	@$(call step,$(GREEN)✓,Migration complete)
-
-export: install  ## 📤 Export tests from Atlas to JSON (DOMAIN=auth)
-	@$(PQA) test export \
-		$(if $(DOMAIN),--domain $(DOMAIN))
 
 # ============================================
 #  🔍 CODE QUALITY
