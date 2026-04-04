@@ -9,31 +9,53 @@ Usage:
     persist_result(result_dict, environment="local", run_by="developer")
 """
 
+import os
+import subprocess
 from datetime import UTC, datetime
 
 from core.db import get_db
+
+
+def _get_git_sha() -> str | None:
+    """Get the current git SHA, or None if not in a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except Exception:
+        return None
 
 
 def persist_result(
     result: dict,
     environment: str = "local",
     run_by: str = "developer",
+    repo: str | None = None,
 ) -> dict:
     """Write a single test result to the results collection.
 
     Args:
         result: Dict from executor (test_id, passed, duration_ms, etc.)
         environment: "local", "staging", or "production"
-        run_by: "developer", "ci-pipeline", or "dashboard"
+        run_by: "developer", "ci-pipeline", "cli", "api", or "dashboard"
+        repo: Repository context (e.g. "mini-baas-infra")
 
     Returns:
         The inserted document.
     """
     db = get_db()
+    pqa_user = os.getenv("PQA_USER", "")
+
     doc = {
         **result,
         "environment": environment,
-        "run_by": run_by,
+        "run_by": run_by if not pqa_user else pqa_user,
+        "repo": repo or result.get("repo"),
+        "git_sha": _get_git_sha(),
         "executed_at": datetime.now(UTC),
     }
     db["results"].insert_one(doc)

@@ -1,10 +1,9 @@
 """
 Test definition models — Pydantic v2 schema validation.
 
-Three test types with a shared base:
-  - HttpTest:   validates HTTP calls (statusCode, bodyContains, etc.)
-  - BashTest:   validates shell command execution (exit code, output)
-  - ManualTest: documents behaviour that requires human verification
+Roadmap 6: Test Registry model.
+  - HttpTest / BashTest / ManualTest — legacy DDA types (backward compatible)
+  - RegistryEntry — new: metadata for scripts that live in external repos
 
 Usage:
     from core.schema import parse_test
@@ -15,12 +14,15 @@ Usage:
 
 from __future__ import annotations
 
+import os
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-# ── StrEnums ────────────────────────────────────────────────
+
+# ── Enums ────────────────────────────────────────────────
 
 
 class Domain(StrEnum):
@@ -48,13 +50,29 @@ class Status(StrEnum):
     deprecated = "deprecated"
 
 
+class Layer(StrEnum):
+    backend = "backend"
+    frontend = "frontend"
+    database = "database"
+    infra = "infra"
+    full_stack = "full-stack"
+
+
+class Runner(StrEnum):
+    http = "http"
+    bash = "bash"
+    jest = "jest"
+    pytest = "pytest"
+    manual = "manual"
+
+
 # ── Base model — 5 required fields for any test ──────────
 
 
 class TestBase(BaseModel):
     """Minimum viable test definition. Valid on its own for manual/spec tests."""
 
-    id: str = Field(..., pattern=r"^[A-Z]+-\d{3}$", examples=["AUTH-001"])
+    id: str = Field(..., pattern=r"^[A-Z]+-[A-Z0-9]+$", examples=["AUTH-001", "BAAS-PHASE08"])
     title: str = Field(..., min_length=5)
     domain: Domain
     priority: Priority
@@ -64,7 +82,7 @@ class TestBase(BaseModel):
     description: str | None = None
     tags: list[str] | None = None
     phase: str | None = None
-    layer: str | None = None
+    layer: Layer | None = None
     type: str | None = None
     service: str | None = None
     component: str | None = None
@@ -73,6 +91,16 @@ class TestBase(BaseModel):
     dependencies: list[str] | None = None
     author: str | None = None
     notes: str | None = None
+
+    # ── Roadmap 6: Registry fields ──
+    repo: str | None = None
+    runner: Runner | None = None
+    script: str | None = None
+    group: str | None = None
+    env_vars: dict[str, str] | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    updated_by: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -145,7 +173,21 @@ def parse_test(data: dict) -> HttpTest | BashTest | ManualTest:
       - If "type" == "manual" → ManualTest
       - If "url" is present   → HttpTest (even if type is missing — v1 compat)
       - Otherwise             → ManualTest (bare spec)
+
+    Auto-sets author from PQA_USER if not provided.
     """
+    # Auto-fill author from PQA_USER if missing
+    if not data.get("author"):
+        pqa_user = os.getenv("PQA_USER", "")
+        if pqa_user:
+            data = {**data, "author": pqa_user}
+
+    # Auto-fill timestamps
+    now = datetime.now(UTC).isoformat()
+    if not data.get("created_at"):
+        data = {**data, "created_at": now}
+    data = {**data, "updated_at": now}
+
     test_type = data.get("type")
 
     if test_type == "bash":
@@ -153,7 +195,6 @@ def parse_test(data: dict) -> HttpTest | BashTest | ManualTest:
     elif test_type == "manual":
         return ManualTest(**data)
     elif test_type == "http" or "url" in data:
-        # v1 tests don't have type="http" — detect by presence of url field
         data_copy = {**data}
         if "type" not in data_copy or data_copy["type"] not in ("http", "bash", "manual"):
             data_copy["type"] = "http"

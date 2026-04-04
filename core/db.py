@@ -62,11 +62,21 @@ def ensure_indexes() -> None:
     # Unique constraint on test ID — prevents duplicate definitions
     db["tests"].create_index("id", unique=True)
 
-    # Compound index for the most common query pattern: filter by domain + priority + status
+    # Compound index for the most common query pattern
     db["tests"].create_index([("domain", 1), ("priority", 1), ("status", 1)])
+
+    # ── Roadmap 6: Registry indexes ──
+    db["tests"].create_index("repo")
+    db["tests"].create_index("layer")
+    db["tests"].create_index("author")
+    db["tests"].create_index("group")
+    db["tests"].create_index("runner")
 
     # Results: find latest runs for a test, ordered by time
     db["results"].create_index([("test_id", 1), ("executed_at", -1)])
+
+    # Results: filter by repo
+    db["results"].create_index("repo")
 
     # Results: auto-purge after 90 days (Atlas M0 has 512MB limit)
     db["results"].create_index("executed_at", expireAfterSeconds=90 * 24 * 3600)

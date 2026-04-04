@@ -10,34 +10,18 @@ from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from pymongo.database import Database
 
 from api.deps import get_database
-from runner.bash_executor import execute_bash_test
-from runner.executor import execute_http_test
+from runner.registry_executor import execute_registered_test
 from runner.results import persist_result
 
 router = APIRouter()
-
-
-async def _execute_test(test: dict) -> dict:
-    """Route a test to the correct executor based on its type."""
-    test_type = test.get("type", "http")
-
-    if test_type == "bash":
-        return await execute_bash_test(test)
-    elif test_type == "manual":
-        return {
-            "test_id": test["id"],
-            "passed": None,
-            "duration_ms": 0,
-            "error": "manual — skipped",
-        }
-    else:
-        return await execute_http_test(test)
 
 
 def _build_query(
     domain: str | None = None,
     priority: str | None = None,
     test_id: str | None = None,
+    repo: str | None = None,
+    layer: str | None = None,
 ) -> dict:
     """Build a MongoDB filter for active tests."""
     query: dict = {"status": "active"}
@@ -47,6 +31,10 @@ def _build_query(
         query["priority"] = priority
     if test_id:
         query["id"] = test_id
+    if repo:
+        query["repo"] = repo
+    if layer:
+        query["layer"] = layer
     return query
 
 
@@ -55,16 +43,23 @@ async def run_tests(
     domain: str | None = Query(None),
     priority: str | None = Query(None),
     test_id: str | None = Query(None, alias="id"),
+    repo: str | None = Query(None),
+    layer: str | None = Query(None),
+    repo_root: str = Query(".", description="Path to repo root for script-based tests"),
     db: Database = Depends(get_database),
 ):
     """Execute all matching active tests and return results."""
-    query = _build_query(domain, priority, test_id)
+    query = _build_query(domain, priority, test_id, repo, layer)
     tests = list(db["tests"].find(query, {"_id": 0}))
 
     all_results = []
     for t in tests:
-        result = await _execute_test(t)
-        persist_result(result, run_by="api")
+        # Determine runner from registry entry or legacy type
+        runner = t.get("runner") or t.get("type", "http")
+        entry = {**t, "runner": runner}
+
+        result = await execute_registered_test(entry, repo_root=repo_root)
+        persist_result(result, run_by="api", repo=t.get("repo"))
         all_results.append(result)
 
     passed = sum(1 for r in all_results if r["passed"] is True)
@@ -84,16 +79,7 @@ async def run_tests(
 
 @router.websocket("/ws/run")
 async def ws_run(ws: WebSocket):
-    """WebSocket endpoint: stream test results one by one.
-
-    Client sends a JSON message with optional filters:
-        {"domain": "auth", "priority": "P0"}
-
-    Server responds with:
-        {"type": "start", "total": N}
-        {"type": "result", "test_id": "...", "passed": true, ...}  (N times)
-        {"type": "done", "passed": N, "failed": N, "duration_ms": N}
-    """
+    """WebSocket endpoint: stream test results one by one."""
     await ws.accept()
 
     try:
@@ -106,18 +92,24 @@ async def ws_run(ws: WebSocket):
         domain=data.get("domain"),
         priority=data.get("priority"),
         test_id=data.get("id"),
+        repo=data.get("repo"),
+        layer=data.get("layer"),
     )
     tests = list(db["tests"].find(query, {"_id": 0}))
 
     await ws.send_json({"type": "start", "total": len(tests)})
 
+    repo_root = data.get("repo_root", ".")
     passed = 0
     failed = 0
     total_ms = 0
 
     for t in tests:
-        result = await _execute_test(t)
-        persist_result(result, run_by="dashboard")
+        runner = t.get("runner") or t.get("type", "http")
+        entry = {**t, "runner": runner}
+
+        result = await execute_registered_test(entry, repo_root=repo_root)
+        persist_result(result, run_by="dashboard", repo=t.get("repo"))
 
         if result["passed"] is True:
             passed += 1
@@ -128,11 +120,6 @@ async def ws_run(ws: WebSocket):
         await ws.send_json({"type": "result", **result})
 
     await ws.send_json(
-        {
-            "type": "done",
-            "passed": passed,
-            "failed": failed,
-            "duration_ms": total_ms,
-        }
+        {"type": "done", "passed": passed, "failed": failed, "duration_ms": total_ms}
     )
     await ws.close()

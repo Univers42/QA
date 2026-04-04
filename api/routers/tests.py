@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
 
 from api.deps import get_database
-from core.git_export import export_test
 from core.schema import parse_test
 
 router = APIRouter()
@@ -21,9 +20,14 @@ router = APIRouter()
 
 @router.get("")
 async def list_tests(
-    domain: str | None = Query(None, description="Filter by domain (auth, infra, etc.)"),
-    priority: str | None = Query(None, description="Filter by priority (P0, P1, P2, P3)"),
-    status: str | None = Query(None, description="Filter by status (active, draft, etc.)"),
+    domain: str | None = Query(None, description="Filter by domain"),
+    priority: str | None = Query(None, description="Filter by priority"),
+    status: str | None = Query(None, description="Filter by status"),
+    repo: str | None = Query(None, description="Filter by repository"),
+    layer: str | None = Query(None, description="Filter by development layer"),
+    author: str | None = Query(None, description="Filter by codeowner"),
+    group: str | None = Query(None, description="Filter by team group"),
+    runner: str | None = Query(None, description="Filter by runner type"),
     db: Database = Depends(get_database),
 ):
     """List all test definitions, with optional filters."""
@@ -34,6 +38,16 @@ async def list_tests(
         query["priority"] = priority
     if status:
         query["status"] = status
+    if repo:
+        query["repo"] = repo
+    if layer:
+        query["layer"] = layer
+    if author:
+        query["author"] = author
+    if group:
+        query["group"] = group
+    if runner:
+        query["runner"] = runner
 
     tests = list(db["tests"].find(query, {"_id": 0}))
     return {"tests": tests, "total": len(tests)}
@@ -59,25 +73,20 @@ async def create_test(
     """Create a new test definition.
 
     Validates against Pydantic schema, checks ID uniqueness,
-    writes to Atlas, and exports to JSON on disk.
+    and writes to Atlas.
     """
-    # Validate with Pydantic
     try:
         test = parse_test(body)
     except Exception as e:
         raise HTTPException(422, f"Validation error: {e}") from None
 
-    # Check uniqueness
     if db["tests"].find_one({"id": test.id}):
         raise HTTPException(409, f"Test {test.id} already exists")
 
     doc = test.model_dump(exclude_none=False)
     db["tests"].insert_one(doc)
 
-    # Export to JSON on disk
-    path = export_test(doc)
-
-    return {"id": test.id, "status": "created", "exported_to": str(path)}
+    return {"id": test.id, "status": "created"}
 
 
 @router.patch("/{test_id}")
@@ -86,20 +95,14 @@ async def update_test(
     body: dict,
     db: Database = Depends(get_database),
 ):
-    """Update an existing test definition.
-
-    Merges the provided fields with the existing document,
-    re-validates, and exports to JSON.
-    """
+    """Update an existing test definition."""
     existing = db["tests"].find_one({"id": test_id}, {"_id": 0})
     if not existing:
         raise HTTPException(404, f"Test {test_id} not found")
 
-    # Merge: existing fields + new fields (new wins)
     merged = {**existing, **body}
-    merged["id"] = test_id  # ID cannot change
+    merged["id"] = test_id
 
-    # Re-validate
     try:
         test = parse_test(merged)
     except Exception as e:
@@ -108,10 +111,7 @@ async def update_test(
     doc = test.model_dump(exclude_none=False)
     db["tests"].update_one({"id": test_id}, {"$set": doc})
 
-    # Re-export to JSON
-    path = export_test(doc)
-
-    return {"id": test_id, "status": "updated", "exported_to": str(path)}
+    return {"id": test_id, "status": "updated"}
 
 
 @router.delete("/{test_id}")
@@ -119,18 +119,10 @@ async def delete_test(
     test_id: str,
     db: Database = Depends(get_database),
 ):
-    """Soft-delete a test — sets status to 'deprecated'.
-
-    The test remains in Atlas and in the JSON file for traceability.
-    """
+    """Soft-delete a test — sets status to 'deprecated'."""
     existing = db["tests"].find_one({"id": test_id})
     if not existing:
         raise HTTPException(404, f"Test {test_id} not found")
 
     db["tests"].update_one({"id": test_id}, {"$set": {"status": "deprecated"}})
-
-    # Update the JSON file too
-    updated = db["tests"].find_one({"id": test_id}, {"_id": 0})
-    export_test(updated)
-
     return {"id": test_id, "status": "deprecated"}

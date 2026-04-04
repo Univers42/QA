@@ -13,7 +13,7 @@ Usage:
 
 import typer
 
-from cli.commands import add_cmd, delete_cmd, edit_cmd, export_cmd, list_cmd, run_cmd
+from cli.commands import add_cmd, delete_cmd, edit_cmd, export_cmd, list_cmd, run_cmd, register_cmd
 
 app = typer.Typer(
     name="pqa",
@@ -34,6 +34,7 @@ test_app.command("add")(add_cmd.add_test)
 test_app.command("edit")(edit_cmd.edit_test)
 test_app.command("delete")(delete_cmd.delete_test)
 test_app.command("export")(export_cmd.export_tests)
+test_app.command("register")(register_cmd.register_tests)
 
 app.add_typer(test_app, name="test")
 
