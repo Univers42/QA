@@ -6,7 +6,6 @@ Talks directly to Atlas (not through the API).
 """
 
 import asyncio
-import os
 
 import typer
 from rich.console import Console
@@ -68,7 +67,9 @@ def run_tests(
     test_id: str | None = typer.Option(None, "--id", help="Run a single test by ID"),
     repo: str | None = typer.Option(None, "--repo", "-r", help="Filter by repository"),
     layer: str | None = typer.Option(None, "--layer", "-l", help="Filter by layer"),
-    repo_root: str = typer.Option(".", "--repo-root", help="Path to the repo root (for script-based tests)"),
+    repo_root: str = typer.Option(
+        ".", "--repo-root", help="Path to the repo root (for script-based tests)"
+    ),
 ):
     """Execute all matching active tests and display results."""
     try:

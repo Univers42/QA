@@ -13,7 +13,7 @@ Usage:
 
 import typer
 
-from cli.commands import add_cmd, delete_cmd, edit_cmd, export_cmd, list_cmd, run_cmd, register_cmd
+from cli.commands import add_cmd, delete_cmd, edit_cmd, export_cmd, list_cmd, register_cmd, run_cmd
 
 app = typer.Typer(
     name="pqa",

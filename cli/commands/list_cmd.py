@@ -21,11 +21,15 @@ def list_tests(
     priority: str | None = typer.Option(None, "--priority", "-p", help="Filter by priority"),
     status: str | None = typer.Option(None, "--status", "-s", help="Filter by status"),
     repo: str | None = typer.Option(None, "--repo", "-r", help="Filter by repository"),
-    layer: str | None = typer.Option(None, "--layer", "-l", help="Filter by layer (backend/frontend/infra)"),
+    layer: str | None = typer.Option(
+        None, "--layer", "-l", help="Filter by layer (backend/frontend/infra)"
+    ),
     author: str | None = typer.Option(None, "--author", help="Filter by author"),
     group: str | None = typer.Option(None, "--group", "-g", help="Filter by group"),
     mine: bool = typer.Option(False, "--mine", help="Show only my tests (uses PQA_USER)"),
-    runner: str | None = typer.Option(None, "--runner", help="Filter by runner (http/bash/jest/pytest)"),
+    runner: str | None = typer.Option(
+        None, "--runner", help="Filter by runner (http/bash/jest/pytest)"
+    ),
 ):
     """List all test definitions with optional filters."""
     try:

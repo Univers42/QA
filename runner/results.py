@@ -53,7 +53,7 @@ def persist_result(
     doc = {
         **result,
         "environment": environment,
-        "run_by": run_by if not pqa_user else pqa_user,
+        "run_by": pqa_user if pqa_user else run_by,
         "repo": repo or result.get("repo"),
         "git_sha": _get_git_sha(),
         "executed_at": datetime.now(UTC),

@@ -1,0 +1,5 @@
+.venv/bin/pqa test add --quick \
+  --id AUTH-005 --title "Signup creates account" \
+  --domain auth --priority P1 --type http \
+  --url "http://localhost:9999/auth/v1/signup" \
+  --method POST --expected-status 200

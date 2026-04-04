@@ -45,8 +45,8 @@ JEST_PATTERNS = [
     re.compile(r".*\.spec\.(ts|tsx|js|jsx)$"),
 ]
 PYTEST_PATTERNS = [
-    re.compile(r"^test_.*\.py$"),
-    re.compile(r".*_test\.py$"),
+    re.compile(r"^test[-_].*\.py$"),
+    re.compile(r".*[-_]test\.py$"),
 ]
 
 # ── Files to skip (helpers, not tests) ──
@@ -191,8 +191,12 @@ def register_tests(
     repo: str = typer.Option(..., "--repo", "-r", help="Repository name (e.g. mini-baas-infra)"),
     scan: str | None = typer.Option(None, "--scan", help="Directory to scan for test scripts"),
     script: str | None = typer.Option(None, "--script", help="Single script to register"),
-    layer: str | None = typer.Option(None, "--layer", "-l", help="Override layer for all registered tests"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be registered without writing to Atlas"),
+    layer: str | None = typer.Option(
+        None, "--layer", "-l", help="Override layer for all registered tests"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be registered without writing to Atlas"
+    ),
 ):
     """Register test scripts from an external repository.
 
@@ -242,7 +246,9 @@ def register_tests(
         if dry_run:
             console.print("  [dim]Dry run — nothing will be written to Atlas[/dim]\n")
             for e in entries:
-                console.print(f"  [cyan]{e['id']:<16}[/cyan] {e['script']:<45} runner={e['runner']}")
+                console.print(
+                    f"  [cyan]{e['id']:<16}[/cyan] {e['script']:<45} runner={e['runner']}"
+                )
             console.print(f"\n  Would register {len(entries)} test(s)\n")
             raise typer.Exit(0)
 
@@ -266,9 +272,7 @@ def register_tests(
                 updated_count += 1
             else:
                 db["tests"].insert_one(entry)
-                console.print(
-                    f"  [green]✓  {entry['id']:<16}[/green] {entry['script']:<45} (new)"
-                )
+                console.print(f"  [green]✓  {entry['id']:<16}[/green] {entry['script']:<45} (new)")
                 new_count += 1
 
         console.print(f"\n  Registered {new_count} new · {updated_count} updated\n")
