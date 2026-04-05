@@ -1,18 +1,32 @@
 """
 Tests router — CRUD operations on test definitions.
 
-Endpoints:
-    GET    /tests          List tests with optional filters
-    GET    /tests/{id}     Get a single test by ID
-    POST   /tests          Create a new test
+Endpoints and Operations:
+    GET    /tests          List all tests with optional filters
+    GET    /tests/{id}     Get a specific test by ID
+    POST   /tests          Create a new test (validates with Pydantic)
     PATCH  /tests/{id}     Update an existing test
-    DELETE /tests/{id}     Soft-delete (set status to deprecated)
+    DELETE /tests/{id}     Soft-delete: sets status to "deprecated"
+
+CRUD Flow:
+    Create:  POST /tests → Validate pydantic → Check ID uniqueness → Insert
+    Read:    GET /tests or GET /tests/{id} → Query database
+    Update:  PATCH /tests/{id} → Merge → Re-validate → Update document
+    Delete:  DELETE /tests/{id} → Set status="deprecated" (soft delete)
+
+All operations integrate with MongoDB Atlas directly via pymongo.
+
+Dependencies:
+    - api.deps.get_database: MongoDB connection pooling
+    - core.schema.parse_test: Pydantic validation
+    - core.query_builder.QueryBuilder: Safe filter construction
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
 
 from api.deps import get_database
+from core.query_builder import QueryBuilder
 from core.schema import parse_test
 
 router = APIRouter()
@@ -30,24 +44,40 @@ async def list_tests(
     runner: str | None = Query(None, description="Filter by runner type"),
     db: Database = Depends(get_database),
 ):
-    """List all test definitions, with optional filters."""
-    query: dict = {}
-    if domain:
-        query["domain"] = domain
-    if priority:
-        query["priority"] = priority
-    if status:
-        query["status"] = status
-    if repo:
-        query["repo"] = repo
-    if layer:
-        query["layer"] = layer
-    if author:
-        query["author"] = author
-    if group:
-        query["group"] = group
-    if runner:
-        query["runner"] = runner
+    """
+    List all test definitions, with optional filters.
+    
+    Query Parameters:
+        domain: Filter by domain (auth, gateway, schema, etc.)
+        priority: Filter by priority (P0, P1, P2, P3)
+        status: Filter by status (active, draft, skipped, deprecated)
+        repo: Filter by repository name
+        layer: Filter by layer (backend, frontend, infra, full-stack)
+        author: Filter by test author
+        group: Filter by team group
+        runner: Filter by runner type (http, bash, jest, pytest)
+    
+    Returns:
+        JSON with 'tests' array and 'total' count.
+        
+    Notes:
+        - All filters are optional and can be combined
+        - No filters returns all tests
+        - Does not include MongoDB _id field
+    """
+    # Build query using centralized QueryBuilder
+    query = (
+        QueryBuilder()
+        .with_domain(domain)
+        .with_priority(priority)
+        .with_status(status)
+        .with_repo(repo)
+        .with_layer(layer)
+        .with_author(author)
+        .with_group(group)
+        .with_runner(runner)
+        .build()
+    )
 
     tests = list(db["tests"].find(query, {"_id": 0}))
     return {"tests": tests, "total": len(tests)}

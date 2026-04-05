@@ -1,11 +1,37 @@
 """
-pqa test add — create a new test definition.
+pqa test add — create a new test definition interactively or via flags.
 
-Two modes:
-  - Interactive (default): guided prompts for each field
-  - Quick (--quick): all fields via CLI flags in one line
+Creation Modes:
+    Interactive (default): Guided step-by-step prompts for all fields
+    Quick (--quick flag): All parameters via CLI flags in one line
 
-Both modes validate with Pydantic, write to Atlas, and export JSON to disk.
+Workflow:
+    1. Parse CLI arguments (interactive or --quick mode)
+    2. Prompt for required fields (ID, title, domain, priority, status)
+    3. Prompt for optional metadata (description, tags, runner, script, etc.)
+    4. Validate with Pydantic (catches invalid formats early)
+    5. Check ID uniqueness in Atlas (prevent duplicates)
+    6. Insert into 'tests' collection
+    7. Export JSON to test-definitions/{domain}/{id}.json
+    8. Auto-commit with Conventional Commits format
+
+Advanced Features:
+    - Auto-generate test IDs: Based on domain prefix (AUTH-001, GW-001, etc.)
+    - Pydantic validation: Enforces ID format (DOMAIN-###), title length, etc.
+    - Git integration: Offers to commit changes with auto-formatted message
+    - Dry-run mode: Preview changes before saving (--dry-run)
+
+Dependencies:
+    - core.db: MongoDB connection
+    - core.constants: Domain, Priority, Status enums
+    - core.schema: Pydantic validation (TestBase model)
+    - core.git_export: Serialize to JSON file
+    - cli.commands.git_helper: Auto-commit utility
+    
+Examples:
+    pqa test add                          # Interactive mode
+    pqa test add --quick -q              # Quick mode with minimal prompts
+    pqa test add --quick -d auth -p P0 -t "Login test" --url https://...
 """
 
 import json
@@ -15,46 +41,17 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from core.constants import Domain, DOMAIN_HELP, Priority, Status
 from core.db import disconnect, get_db
 from core.git_export import export_test
 from core.schema import parse_test
 
 console = Console()
 
-# Domain prefixes for auto-generating the next available ID
-DOMAIN_PREFIXES = {
-    "auth": "AUTH",
-    "gateway": "GW",
-    "schema": "SCH",
-    "api": "API",
-    "realtime": "RT",
-    "storage": "STG",
-    "ui": "UI",
-    "infra": "INFRA",
-}
-
-# Domain descriptions for the help table
-DOMAIN_HELP = {
-    "auth": "GoTrue — login, OAuth, JWT, sessions",
-    "gateway": "Kong — routing, rate limiting, CORS",
-    "schema": "schema-service — collections, fields, DDL",
-    "api": "PostgREST or QA API — endpoints, filters, RLS",
-    "realtime": "Supabase Realtime — WebSocket, subscriptions",
-    "storage": "MinIO — file upload, presigned URLs",
-    "ui": "React frontend — components, hooks, stores",
-    "infra": "Docker, health checks, infrastructure, Atlas",
-}
-
-# Type descriptions
-TYPE_HELP = {
-    "http": "API call — check status code, body content (needs url + method + expected)",
-    "bash": "Shell command — check exit code, stdout (needs script)",
-    "manual": "Human verification — specification only, skipped by runner",
-}
-
-DOMAINS = list(DOMAIN_PREFIXES.keys())
-PRIORITIES = ["P0", "P1", "P2", "P3"]
-TYPES = ["http", "bash", "manual"]
+# Build dynamic lists of valid options
+DOMAINS = [d.value for d in Domain]
+PRIORITIES = [p.value for p in Priority]
+STATUSES = [s.value for s in Status]
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 

@@ -1,8 +1,22 @@
 """
 pqa test run — execute active tests and display results.
 
-Uses the registry executor to dispatch by runner type (bash/http/jest/pytest).
-Talks directly to Atlas (not through the API).
+Executes tests locally using the registry executor to dispatch by runner type
+(Bash, HTTP, Jest, Pytest). Connects directly to Atlas (not through the API),
+enabling offline execution even if the dashboard API is unavailable.
+
+Flow:
+    1. Parse filters (domain, priority, layer, repo, test_id)
+    2. Query Atlas for matching active tests
+    3. Execute each test with appropriate runner
+    4. Persist results to 'results' collection
+    5. Display rich table with status, timing, and errors
+
+Dependencies:
+    - core.db: MongoDB connection
+    - core.query_builder.QueryBuilder: Safe query construction
+    - runner.registry_executor: Test execution dispatcher
+    - runner.results: Result persistence
 """
 
 import asyncio
@@ -12,6 +26,7 @@ from rich.console import Console
 from rich.table import Table
 
 from core.db import disconnect, get_db
+from core.query_builder import QueryBuilder
 from runner.registry_executor import execute_registered_test
 from runner.results import persist_result
 
@@ -26,19 +41,33 @@ async def _run(
     layer: str | None,
     repo_root: str = ".",
 ) -> list[dict]:
-    """Fetch active tests from Atlas and execute them."""
+    """
+    Fetch active tests from Atlas and execute them.
+
+    Args:
+        domain: Filter by test domain
+        priority: Filter by priority level
+        test_id: Run a specific test by ID
+        repo: Filter by repository
+        layer: Filter by test layer
+        repo_root: Base directory for script execution
+
+    Returns:
+        List of result dicts with {test_id, passed, error, duration_ms, ...}
+    """
     db = get_db()
-    query: dict = {"status": "active"}
-    if domain:
-        query["domain"] = domain
-    if priority:
-        query["priority"] = priority
-    if test_id:
-        query["id"] = test_id
-    if repo:
-        query["repo"] = repo
-    if layer:
-        query["layer"] = layer
+
+    # Build query for active tests only
+    query = (
+        QueryBuilder()
+        .with_status("active")
+        .with_domain(domain)
+        .with_priority(priority)
+        .with_test_id(test_id)
+        .with_repo(repo)
+        .with_layer(layer)
+        .build()
+    )
 
     tests = list(db["tests"].find(query, {"_id": 0}))
 
@@ -50,7 +79,7 @@ async def _run(
 
     results = []
     for t in tests:
-        # Determine runner from the registry entry or fall back to legacy 'type'
+        # Determine runner from registry entry or legacy 'type' field
         runner = t.get("runner") or t.get("type", "http")
         entry = {**t, "runner": runner}
 

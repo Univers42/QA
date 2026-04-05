@@ -1,8 +1,21 @@
 """
 pqa test list — display test definitions in a formatted table.
 
-Talks directly to Atlas (not through the API) so it works
-even when the API server is not running.
+Lists all tests matching optional filters, displaying ID, title, domain, priority,
+status, layer, and runner type. Connects directly to Atlas (not through API),
+enabling offline operation.
+
+Features:
+    - Multiple filter options (domain, priority, status, repo, layer, etc.)
+    - --mine flag: Show only tests authored by current user (PQA_USER env var)
+    - Color-coded status indicators (green=active, yellow=draft, dim=skipped)
+    - Sorted alphabetically by test ID
+    - Summary line showing counts by status
+
+Dependencies:
+    - core.db: MongoDB connection
+    - core.query_builder.QueryBuilder: Safe query construction
+    - core.config.Settings: PQA_USER for --mine flag
 """
 
 import os
@@ -12,6 +25,7 @@ from rich.console import Console
 from rich.table import Table
 
 from core.db import disconnect, get_db
+from core.query_builder import QueryBuilder
 
 console = Console()
 
@@ -31,26 +45,32 @@ def list_tests(
         None, "--runner", help="Filter by runner (http/bash/jest/pytest)"
     ),
 ):
-    """List all test definitions with optional filters."""
+    """
+    List all test definitions with optional filters.
+
+    Filters can be combined. Results are sorted by test ID.
+
+    Examples:
+        pqa test list                          # All tests
+        pqa test list --domain auth            # Only auth tests
+        pqa test list --status active          # Only active tests
+        pqa test list --mine                   # Tests I authored (requires PQA_USER)
+        pqa test list --domain auth --status active  # Combined filters
+    """
     try:
         db = get_db()
-        query: dict = {}
-        if domain:
-            query["domain"] = domain
-        if priority:
-            query["priority"] = priority
-        if status:
-            query["status"] = status
-        if repo:
-            query["repo"] = repo
-        if layer:
-            query["layer"] = layer
-        if group:
-            query["group"] = group
-        if runner:
-            query["runner"] = runner
 
-        # --mine uses PQA_USER env var
+        # Build query using centralized QueryBuilder
+        builder = QueryBuilder()
+        builder.with_domain(domain)
+        builder.with_priority(priority)
+        builder.with_status(status)
+        builder.with_repo(repo)
+        builder.with_layer(layer)
+        builder.with_group(group)
+        builder.with_runner(runner)
+
+        # Handle --mine flag: filter by current user
         if mine:
             pqa_user = os.getenv("PQA_USER", "")
             if not pqa_user:
@@ -59,10 +79,11 @@ def list_tests(
                     "Set it to filter by your tests: export PQA_USER=your_42_login\n"
                 )
                 return
-            query["author"] = pqa_user
+            builder.with_author(pqa_user)
         elif author:
-            query["author"] = author
+            builder.with_author(author)
 
+        query = builder.build()
         tests = list(db["tests"].find(query, {"_id": 0}).sort("id", 1))
 
         if not tests:
@@ -83,6 +104,10 @@ def list_tests(
 
         # Show active filters
         filters = []
+        if domain:
+            filters.append(f"domain={domain}")
+        if priority:
+            filters.append(f"priority={priority}")
         if repo:
             filters.append(f"repo={repo}")
         if layer:
@@ -93,11 +118,14 @@ def list_tests(
             filters.append(f"author={author}")
         if group:
             filters.append(f"group={group}")
+        if runner:
+            filters.append(f"runner={runner}")
         if filters:
             console.print(f"  [dim]Filters: {', '.join(filters)}[/dim]")
 
         console.print()
 
+        # Build and show table
         table = Table(show_header=True, header_style="bold", padding=(0, 1))
         table.add_column("ID", style="cyan", width=16)
         table.add_column("Domain", width=10)
